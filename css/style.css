@@ -1,0 +1,294 @@
+:root {
+    /* Light Mode - Concrete/Industrial */
+    --bg-color: #dcdcdc;
+    --sidebar-bg: #ececec;
+    --text-color: #000000;
+    --border-color: #000000;
+    --accent-color: #faff00;
+    /* Alert Yellow */
+    --accent-text: #000000;
+    --card-bg: #ffffff;
+    --map-pattern: #c0c0c0;
+    --shadow-color: #000000;
+    --border-width: 4px;
+    --hard-shadow: 8px 8px 0px 0px var(--shadow-color);
+    --hard-shadow-sm: 4px 4px 0px 0px var(--shadow-color);
+    --transition: all 0.15s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+}
+
+body.dark-mode {
+    /* Dark Mode - Asphalt/Night */
+    --bg-color: #121212;
+    --sidebar-bg: #1a1a1a;
+    --text-color: #ffffff;
+    --border-color: #ffffff;
+    --accent-color: #00ff41;
+    /* Neon Green */
+    --accent-text: #000000;
+    --card-bg: #222222;
+    --map-pattern: #2a2a2a;
+    --shadow-color: #ffffff;
+    --hard-shadow: 8px 8px 0px 0px var(--accent-color);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+body,
+html {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease;
+}
+
+/* Layout Structure */
+.app-container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    border: var(--border-width) solid var(--border-color);
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: 380px;
+    min-width: 380px;
+    height: 100%;
+    background-color: var(--sidebar-bg);
+    border-right: var(--border-width) solid var(--border-color);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    z-index: 10;
+    overflow-y: auto;
+}
+
+.header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.brand {
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 0.9;
+    text-transform: uppercase;
+    letter-spacing: -2px;
+    font-style: italic;
+}
+
+.theme-toggle {
+    margin-top: 1rem;
+    background: var(--card-bg);
+    border: var(--border-width) solid var(--border-color);
+    padding: 0.5rem 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: var(--hard-shadow-sm);
+    text-transform: uppercase;
+    color: var(--text-color);
+}
+
+.theme-toggle:active {
+    box-shadow: 0px 0px 0px 0px var(--shadow-color);
+    transform: translate(2px, 2px);
+}
+
+.filter-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.filter-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.fuel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.fuel-btn {
+    background: var(--card-bg);
+    border: var(--border-width) solid var(--border-color);
+    padding: 1.5rem 1rem;
+    font-weight: 900;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-align: left;
+    transition: var(--transition);
+    color: var(--text-color);
+    position: relative;
+    overflow: hidden;
+}
+
+.fuel-btn.active {
+    background: var(--accent-color);
+    color: #000;
+    box-shadow: var(--hard-shadow-sm);
+    transform: translate(-2px, -2px);
+}
+
+/* Dynamic Post Info Card */
+.info-card {
+    margin-top: auto;
+    border: var(--border-width) solid var(--border-color);
+    background: var(--card-bg);
+    padding: 1.5rem;
+    min-height: 250px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    box-shadow: var(--hard-shadow-sm);
+}
+
+.info-card.empty::after {
+    content: "SELECIONE UM POSTO NO MAPA";
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    text-align: center;
+    opacity: 0.3;
+}
+
+.post-details h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.price-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 4rem;
+    font-weight: 800;
+    letter-spacing: -4px;
+    line-height: 1;
+    margin: 0.5rem 0;
+    color: var(--accent-color);
+    -webkit-text-stroke: 1px var(--border-color);
+}
+
+.update-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
+/* Map Area */
+.map-viewport {
+    flex-grow: 1;
+    background-color: var(--bg-color);
+    background-image: radial-gradient(var(--map-pattern) 2px, transparent 2px);
+    background-size: 40px 40px;
+    position: relative;
+    cursor: crosshair;
+}
+
+/* Map Pins */
+.pin {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: var(--card-bg);
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: var(--hard-shadow-sm);
+    transition: var(--transition);
+    z-index: 5;
+}
+
+.pin:hover {
+    transform: scale(1.1) rotate(-5deg);
+    background: var(--accent-color);
+    color: #000;
+    z-index: 6;
+}
+
+.pin::before {
+    content: '';
+    position: absolute;
+    bottom: -15px;
+    width: 4px;
+    height: 15px;
+    background: var(--border-color);
+}
+
+/* Pin Positions */
+#pin1 {
+    top: 20%;
+    left: 30%;
+}
+
+#pin2 {
+    top: 55%;
+    left: 45%;
+}
+
+#pin3 {
+    top: 35%;
+    left: 70%;
+}
+
+#pin4 {
+    top: 75%;
+    left: 25%;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--sidebar-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border: 3px solid var(--sidebar-bg);
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+.sidebar {
+    animation: slideIn 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

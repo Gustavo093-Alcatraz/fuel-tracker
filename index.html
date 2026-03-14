@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FUELSTRK // MONITORAMENTO URBANO</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@500;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="header">
+                <h1 class="brand">FUEL<br>STRK</h1>
+                <button class="theme-toggle" id="modeToggle">MODE: LIGHT</button>
+            </div>
+
+            <div class="filter-section">
+                <span class="filter-label">Combustível Principal</span>
+                <div class="fuel-grid">
+                    <button class="fuel-btn active" onclick="setFuel(this, 'Gasolina')">Gasolina</button>
+                    <button class="fuel-btn" onclick="setFuel(this, 'Aditivada')">Aditivada</button>
+                    <button class="fuel-btn" onclick="setFuel(this, 'Etanol')">Etanol</button>
+                    <button class="fuel-btn" onclick="setFuel(this, 'Diesel')">Diesel</button>
+                </div>
+            </div>
+
+            <div class="info-card empty" id="dynamicCard">
+                <!-- Data will be injected here -->
+            </div>
+
+            <div style="font-family: 'JetBrains Mono'; font-size: 10px; opacity: 0.5; margin-top: 1rem;">
+                v1.0.4-BRUTALIST // SYSTEM_OPERATIONAL
+            </div>
+        </aside>
+
+        <main class="map-viewport">
+            <!-- Simulated Map Pins -->
+            <div class="pin" id="pin1" onclick="showPost('Posto Ipiranga R1', 'R$ 5.89')">5.89</div>
+            <div class="pin" id="pin2" onclick="showPost('Shell Station V8', 'R$ 5.92')">5.92</div>
+            <div class="pin" id="pin3" onclick="showPost('Petrobras Hub', 'R$ 5.75')">5.75</div>
+            <div class="pin" id="pin4" onclick="showPost('Posto Aliança', 'R$ 5.99')">5.99</div>
+        </main>
+    </div>
+
+    <script src="js/script.js" defer></script>
+</body>
+
+</html>
