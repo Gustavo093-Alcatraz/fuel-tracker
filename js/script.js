@@ -43,13 +43,13 @@ const statesData = [
 ];
 
 // Definições de Camadas do Mapa (Tiles Minimalistas da CartoDB)
-const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
     subdomains: 'abcd',
     maxZoom: 20
 });
 
-const cartoDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+const cartoDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
     subdomains: 'abcd',
     maxZoom: 20
@@ -104,6 +104,8 @@ async function initApp() {
 
     // Monitorar a mudança de zoom para alternar os marcadores
     map.on('zoomend', handleZoomChange);
+
+    setTimeout(() => map.invalidateSize(), 200);
 }
 
 function handleZoomChange() {
@@ -137,7 +139,6 @@ function renderStateMarkers() {
         const currentPrice = (basePrice * fatorDiario).toFixed(2);
 
         const brutalistIcon = L.divIcon({
-            className: '', // Usa apenas as classes internas no HTML
             html: `<div class="pin">${currentPrice}</div>`,
             iconSize: [80, 80],
             iconAnchor: [40, 80]
@@ -186,7 +187,6 @@ async function fetchStations() {
 
             // Instancia o Pin usando o L.divIcon com a div do CSS Brutalista
             const brutalistIcon = L.divIcon({
-                className: '', // Removido leaflet-brutalist-marker para não sobrescrever a div .pin interna
                 html: `<div class="pin">${currentPrice}</div>`,
                 iconSize: [80, 80],
                 iconAnchor: [40, 80] // Ajuste para a ponta do pino tocar exatamente a coordenada
