@@ -9,6 +9,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@500;800&display=swap"
         rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -41,15 +44,16 @@
         </aside>
 
         <main class="map-viewport">
-            <!-- Simulated Map Pins -->
-            <div class="pin" id="pin1" onclick="showPost('Posto Ipiranga R1', 'R$ 5.89')">5.89</div>
-            <div class="pin" id="pin2" onclick="showPost('Shell Station V8', 'R$ 5.92')">5.92</div>
-            <div class="pin" id="pin3" onclick="showPost('Petrobras Hub', 'R$ 5.75')">5.75</div>
-            <div class="pin" id="pin4" onclick="showPost('Posto Aliança', 'R$ 5.99')">5.99</div>
+            <div id="mapStatus" class="map-status">FETCHING_OSM_DATA...</div>
+            <!-- Container real do Leaflet -->
+            <div id="map" style="width: 100%; height: 100%; z-index: 1;"></div>
         </main>
     </div>
 
-    <script src="js/script.js" defer></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="js/script.js"></script>
 </body>
 
 </html>

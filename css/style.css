@@ -259,6 +259,40 @@ html {
     left: 25%;
 }
 
+/* --- LEAFLET CUSTOM BRUTALIST STYLES --- */
+.leaflet-container {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-color);
+}
+
+/* Marcador Customizado (DivIcon) */
+.leaflet-brutalist-marker {
+    background-color: var(--accent-color);
+    border: var(--border-width) solid #000000;
+    box-shadow: var(--hard-shadow-sm);
+    transition: var(--transition);
+    border-radius: 0;
+    /* Garante que o formato é de bloco quadrado */
+}
+
+.leaflet-brutalist-marker:hover {
+    transform: scale(1.15) !important;
+    /* !important necessário para sobrescrever inline style do Leaflet */
+    background-color: #ffffff;
+    z-index: 1000 !important;
+    cursor: crosshair;
+}
+
+/* Sobrescrever Popups/Tip do Leaflet (Caso deseje usar nativo depois) */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 0;
+    box-shadow: var(--hard-shadow-sm);
+    background: var(--card-bg);
+    color: var(--text-color);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
     width: 12px;
@@ -271,6 +305,27 @@ html {
 ::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border: 3px solid var(--sidebar-bg);
+}
+
+/* Map Loading Status */
+.map-status {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: var(--accent-color);
+    color: #000;
+    border: var(--border-width) solid var(--border-color);
+    padding: 0.5rem 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    text-transform: uppercase;
+    box-shadow: var(--hard-shadow-sm);
+    display: none;
+}
+
+.map-status.active {
+    display: block;
 }
 
 /* Animations */
@@ -289,6 +344,13 @@ html {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
