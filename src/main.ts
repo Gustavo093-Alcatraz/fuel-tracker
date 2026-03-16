@@ -424,10 +424,21 @@ function setupEventListeners(): void {
 }
 
 // ============================================
-// INICIALIZAÇÃO DA APLICAÇÃO
+// INICIALIZAÇÃO DA APLICAÇÃO (CORRIGIDO PARA VITE/ESM)
 // ============================================
 
-document.addEventListener('DOMContentLoaded', () => {
-  initApp();
-  setupEventListeners();
-});
+function bootstrap() {
+  const mapElement = document.getElementById('map');
+  if (mapElement) {
+    initApp();
+    setupEventListeners();
+  } else {
+    // Fallback caso o script carregue bizarramente rápido
+    window.addEventListener('DOMContentLoaded', () => {
+      initApp();
+      setupEventListeners();
+    });
+  }
+}
+
+bootstrap();

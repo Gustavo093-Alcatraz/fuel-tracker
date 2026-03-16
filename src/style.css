@@ -14,12 +14,11 @@
 /* --- Leaflet Custom Brutalist Styles --- */
 .leaflet-container {
   font-family: 'Inter', sans-serif;
-  background-color: var(--bg-light);
-  z-index: 1;
+  /* Removido background e z-index para não esconder as imagens de satélite/ruas */
 }
 
 .dark .leaflet-container {
-  background-color: var(--bg-dark);
+  /* Removido background para não conflitar com tiles */
 }
 
 /* Marcador Customizado (DivIcon) */
@@ -97,6 +96,7 @@
   from {
     transform: translateX(-100%);
   }
+
   to {
     transform: translateX(0);
   }
@@ -107,6 +107,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
