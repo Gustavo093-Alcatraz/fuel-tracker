@@ -31,7 +31,6 @@
 }
 
 .leaflet-brutalist-marker:hover {
-  transform: scale(1.15) !important;
   z-index: 1000 !important;
   cursor: crosshair;
 }
@@ -64,7 +63,7 @@
 .leaflet-brutalist-marker .pin:hover {
   background-color: var(--accent-neon);
   color: #000000;
-  transform: scale(1.1) rotate(-5deg);
+  transform: scale(1.05) rotate(-5deg);
 }
 
 /* Sobrescrever Popups/Tip do Leaflet */
