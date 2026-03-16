@@ -77,6 +77,20 @@ let municipiosGroup: L.LayerGroup | null = null;
 const markerCache = new Map<string, L.Marker>();
 let debounceTimer: number | null = null;
 
+let currentPlan: 'FREE' | 'PREMIUM' = 'FREE';
+
+// Mock Data for Electric & Mechanics
+const electricPoints = [
+  { id: 'ev1', name: 'Rovema Power Hub', lat: -8.7610, lng: -63.9050, kwh: 150, status: 'ON' },
+  { id: 'ev2', name: 'Posto Central EV', lat: -8.7500, lng: -63.8900, kwh: 50, status: 'OFF' },
+  { id: 'ev3', name: 'Shopping PVH Recharg', lat: -8.7680, lng: -63.8750, kwh: 22, status: 'ON' },
+];
+
+const maintenanceHubs = [
+  { id: 'mech1', name: 'Oficina do Mineiro', lat: -8.7550, lng: -63.9200, price: '$$', rating: '9.8' },
+  { id: 'mech2', name: 'Auto Center PVH', lat: -8.7750, lng: -63.9000, price: '$', rating: '8.5' },
+];
+
 // Postos fictícios (Porto Velho)
 let postosFicticiosCache: PostoFicticio[] = postosPortoVelho;
 
@@ -139,10 +153,23 @@ function simulatePrice(fuelType: string): string {
 /**
  * Cria um ícone brutalist para os marcadores
  */
-function createBrutalistIcon(price: string, type: 'posto' | 'municipio' | 'estado' = 'posto'): L.DivIcon {
-  const className = type === 'posto' ? 'pin' : (type === 'municipio' ? 'pin-municipio' : 'pin-estado');
+function createBrutalistIcon(price: string, type: 'posto' | 'municipio' | 'estado' | 'electric' | 'mechanic' = 'posto'): L.DivIcon {
+  const className = type === 'posto' ? 'pin' 
+    : (type === 'municipio' ? 'pin-municipio' 
+    : (type === 'estado' ? 'pin-estado' 
+    : (type === 'electric' ? 'pin-electric' : 'pin-mechanic')));
+    
+  const badgeClass = currentPlan === 'PREMIUM' ? 'premium' : 'free';
+  const badgeContent = currentPlan;
+  
+  // Condicional para mostrar badge apenas em postos de combustível e novos tipos
+  const showBadge = type !== 'municipio' && type !== 'estado';
+
   return L.divIcon({
-    html: `<div class="${className}">${price}</div>`,
+    html: `
+      <div class="${className}">${type === 'electric' ? '<span>⚡</span>' : (type === 'mechanic' ? '<div class="label">FIX</div>' : price)}</div>
+      ${showBadge ? `<div class="marker-plan-badge ${badgeClass}">${badgeContent}</div>` : ''}
+    `,
     iconSize: [80, 80],
     iconAnchor: [40, 80],
     className: `leaflet-brutalist-marker marker-${type}`,
@@ -159,7 +186,7 @@ function updateStationView(): void {
   if (!dynamicCard) return;
 
   const displayedPrice: string = currentStation.currentPrice || simulatePrice(currentFuel);
-  showPost(currentStation.name, `R$ ${displayedPrice}`);
+  showPost(currentStation.name, displayedPrice);
 }
 
 /**
@@ -397,6 +424,124 @@ async function fetchStations(): Promise<void> {
   });
 
   if (statusBadge) statusBadge.classList.remove('active');
+
+  // Desenhar Pontos Elétricos e Mecânicos (Apenas em zoom alto)
+  if (map.getZoom() >= 12) {
+    renderExtendedServices();
+  }
+}
+
+/**
+ * Renderiza serviços estendidos (Elétricos e Mecânicos)
+ */
+function renderExtendedServices(): void {
+  if (!map || !markersGroup) return;
+
+  // Pontos Elétricos
+  electricPoints.forEach(p => {
+    const cacheKey = `ev-${p.id}-${currentPlan}`;
+    let marker = markerCache.get(cacheKey);
+    
+    // Na versão FREE, não mostramos status nem kWh no ícone, apenas localização básica
+    const iconLabel = currentPlan === 'PREMIUM' ? `${p.kwh}kW` : 'EV';
+    
+    if (!marker) {
+      const icon = createBrutalistIcon(iconLabel, 'electric');
+      marker = L.marker([p.lat, p.lng], { icon });
+      marker.on('click', () => {
+        showEVDetails(p);
+      });
+      markerCache.set(cacheKey, marker);
+    }
+    markersGroup?.addLayer(marker);
+  });
+
+  // Mecânicas (Apenas para PREMIUM)
+  if (currentPlan === 'PREMIUM') {
+    maintenanceHubs.forEach(m => {
+      const cacheKey = `mech-${m.id}`;
+      let marker = markerCache.get(cacheKey);
+      if (!marker) {
+        const icon = createBrutalistIcon(m.rating, 'mechanic');
+        marker = L.marker([m.lat, m.lng], { icon });
+        marker.on('click', () => {
+          showMechanicDetails(m);
+        });
+        markerCache.set(cacheKey, marker);
+      }
+      markersGroup?.addLayer(marker);
+    });
+  }
+}
+
+function showEVDetails(ev: typeof electricPoints[0]): void {
+  const dynamicCard = document.getElementById('dynamicCard');
+  if (!dynamicCard) return;
+
+  dynamicCard.classList.remove('empty');
+  
+  // Bloqueio de informação Premium
+  const content = currentPlan === 'PREMIUM' 
+    ? `
+      <div class="post-details animate-fadeIn">
+        <span class="font-mono font-bold text-xs" style="color: #0056ff; background: #000; padding: 2px 5px;">
+          EV_FAST_CHARGER
+        </span>
+        <h2 class="text-3xl font-black leading-none uppercase mt-[10px]">${ev.name}</h2>
+        <div class="mt-4 p-4 border-2 border-black dark:border-white">
+          <div class="flex justify-between items-center mb-2">
+            <span class="font-mono text-xs uppercase opacity-60">Status:</span>
+            <span class="font-bold uppercase ${ev.status === 'ON' ? 'text-accent-green' : 'text-red-500'}">${ev.status}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-mono text-xs uppercase opacity-60">Potência:</span>
+            <span class="font-bold uppercase">${ev.kwh} KWH</span>
+          </div>
+        </div>
+        <button class="mt-4 w-full bg-black text-white py-2 font-mono font-bold uppercase text-xs">Reservar Vaga</button>
+      </div>
+    `
+    : `
+      <div class="post-details animate-fadeIn text-center">
+        <h2 class="text-xl font-black uppercase mb-4">${ev.name}</h2>
+        <div class="bg-black text-white p-4 font-mono text-[10px] uppercase">
+          [BLOQUEADO] STATUS E POTÊNCIA DISPONÍVEIS APENAS NO PLANO PREMIUM.
+        </div>
+        <button class="plans-trigger-inline mt-4 text-xs underline font-bold uppercase">Upgrade Agora</button>
+      </div>
+    `;
+
+  dynamicCard.innerHTML = content;
+  
+  dynamicCard.querySelector('.plans-trigger-inline')?.addEventListener('click', openPricingModal);
+}
+
+function showMechanicDetails(m: typeof maintenanceHubs[0]): void {
+  const dynamicCard = document.getElementById('dynamicCard');
+  if (!dynamicCard) return;
+  
+  dynamicCard.classList.remove('empty');
+  dynamicCard.innerHTML = `
+    <div class="post-details animate-fadeIn">
+      <span class="font-mono font-bold text-xs" style="color: #ff00ea; background: #000; padding: 2px 5px;">
+        PREMIUM_MAINTENANCE
+      </span>
+      <h2 class="text-3xl font-black leading-none uppercase mt-[10px]">${m.name}</h2>
+      <div class="mt-4 flex gap-2">
+        <div class="bg-black text-white p-2 flex-1 text-center">
+          <div class="text-[8px] font-mono opacity-60 uppercase">Preço</div>
+          <div class="font-black">${m.price}</div>
+        </div>
+        <div class="bg-accent-neon text-black p-2 flex-1 text-center border-brutal border-black">
+          <div class="text-[8px] font-mono opacity-60 uppercase">Qualidade</div>
+          <div class="font-black">${m.rating}/10</div>
+        </div>
+      </div>
+      <p class="mt-4 font-mono text-[10px] uppercase opacity-60 leading-tight">
+        Oficina certificada com os melhores preços de peças da região. Exclusivo para membros Premium.
+      </p>
+    </div>
+  `;
 }
 
 /**
@@ -533,7 +678,42 @@ function setupEventListeners(): void {
     });
   });
 
-  // Modal Control
+  // Plans Logic
+  const plansToggle = document.getElementById('plansToggle');
+  const pricingModal = document.getElementById('pricingModal');
+  const closePricing = document.getElementById('closePricingModal');
+
+  plansToggle?.addEventListener('click', openPricingModal);
+  closePricing?.addEventListener('click', () => pricingModal?.classList.add('hidden'));
+
+  document.querySelectorAll('.select-plan').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.currentTarget as HTMLElement;
+      const plan = target.getAttribute('data-plan') as 'FREE' | 'PREMIUM';
+      
+      currentPlan = plan;
+      if (plansToggle) {
+        plansToggle.innerText = `PLANOS: ${plan}`;
+        plansToggle.style.backgroundColor = plan === 'PREMIUM' ? '#00ff41' : '#faff00';
+      }
+      
+      pricingModal?.classList.add('hidden');
+      markerCache.clear(); // Limpar cache para forçar badge update e novos tipos
+      handleZoomChange();
+    });
+  });
+
+  // Search Logic
+  document.getElementById('searchTrigger')?.addEventListener('click', handleGlobalSearch);
+  
+  // Enter keys for inputs
+  ['searchState', 'searchCity', 'searchPrice'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleGlobalSearch();
+    });
+  });
+
+  // Modal Control (Payment)
   const modal = document.getElementById('paymentModal');
   const closeBtn = document.getElementById('closeModal');
   
@@ -544,6 +724,124 @@ function setupEventListeners(): void {
   modal?.addEventListener('click', (e) => {
     if (e.target === modal) modal.classList.add('hidden');
   });
+}
+
+/**
+ * Abre o modal de preços
+ */
+function openPricingModal(): void {
+  document.getElementById('pricingModal')?.classList.remove('hidden');
+}
+
+/**
+ * Lógica de Busca Global: Preço, Estado e Município
+ */
+async function handleGlobalSearch(): Promise<void> {
+  const ufInput = (document.getElementById('searchState') as HTMLInputElement)?.value.toUpperCase();
+  const cityInput = (document.getElementById('searchCity') as HTMLInputElement)?.value.toUpperCase();
+  const priceInput = (document.getElementById('searchPrice') as HTMLInputElement)?.value.replace(',', '.');
+  const targetPrice = parseFloat(priceInput);
+
+  if (!map) return;
+
+  // 1. Zoom por UF
+  if (ufInput && !cityInput) {
+    const state = statesData.find(s => s.uf === ufInput);
+    if (state) {
+      map.setView([state.lat, state.lng], 7);
+      showStateInfo(state, (state.precoMedio * simulatePriceMultiplier()).toFixed(2));
+      return;
+    }
+  }
+
+  // 2. Zoom por Município (Simulado ou Real via Postos)
+  if (cityInput) {
+    // Busca nos postos se eles existem na área
+    const cityStations = postosFicticiosCache.filter(p => 
+      p.municipio.toUpperCase().includes(cityInput) || 
+      (p.nome.toUpperCase().includes(cityInput))
+    );
+
+    if (cityStations.length > 0) {
+      const avgLat = cityStations.reduce((a, b) => a + b.lat, 0) / cityStations.length;
+      const avgLng = cityStations.reduce((a, b) => a + b.lng, 0) / cityStations.length;
+      
+      // Aplicar filtro de preço se fornecido
+      if (!isNaN(targetPrice)) {
+        const matchingPrice = cityStations.filter(p => {
+          const fuelKey = currentFuel.toLowerCase() as keyof typeof p.precos;
+          const pPrice = p.precos[fuelKey];
+          return Math.abs(pPrice - targetPrice) <= 0.30; // Margem de 30 centavos
+        });
+
+        if (matchingPrice.length > 0) {
+          const p = matchingPrice[0];
+          const fuelKey = currentFuel.toLowerCase() as keyof typeof p.precos;
+          const station: Station = {
+            id: p.id,
+            name: p.nome,
+            lat: p.lat,
+            lng: p.lng,
+            currentPrice: p.precos[fuelKey].toFixed(2),
+            endereco: p.endereco,
+            bairro: p.bairro,
+            municipio: p.municipio,
+            produto: currentFuel
+          };
+          map.setView([station.lat, station.lng], 14);
+          currentStation = station;
+          updateStationView();
+          return;
+        }
+      }
+
+      map.setView([avgLat, avgLng], 12);
+      return;
+    }
+  }
+
+  // 3. Apenas preço (Busca na área visível ou global)
+  if (!isNaN(targetPrice) && !cityInput && !ufInput) {
+    const matchingStations = postosFicticiosCache.filter(p => {
+      const fuelKey = currentFuel.toLowerCase() as keyof typeof p.precos;
+      const pPrice = p.precos[fuelKey];
+      return Math.abs(pPrice - targetPrice) <= 0.20; // Margem de 20 centavos
+    });
+
+    if (matchingStations.length > 0) {
+      const bounds = L.latLngBounds(matchingStations.map(p => [p.lat, p.lng]));
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+      
+      // Feedback visual - abre o primeiro encontrado
+      const p = matchingStations[0];
+      const fuelKey = currentFuel.toLowerCase() as keyof typeof p.precos;
+      const station: Station = {
+        id: p.id,
+        name: p.nome,
+        lat: p.lat,
+        lng: p.lng,
+        currentPrice: p.precos[fuelKey].toFixed(2),
+        endereco: p.endereco,
+        bairro: p.bairro,
+        municipio: p.municipio,
+        produto: currentFuel
+      };
+      currentStation = station;
+      updateStationView();
+    }
+  }
+}
+
+function simulatePriceMultiplier(): number {
+  const fuelMultipliers: Record<string, number> = {
+    'Gasolina': 1.0,
+    'Aditivada': 1.05,
+    'Etanol': 0.70,
+    'Diesel': 0.90,
+    'S10': 0.95,
+    'Podium': 1.15,
+  };
+  return fuelMultipliers[currentFuel] || 1.0;
 }
 
 /**
@@ -564,12 +862,18 @@ function openPaymentModal(): void {
 }
 
 function renderPaymentMethodSelection(container: HTMLElement, station: string, price: string): void {
-  const priceNum = parseFloat(price);
-  const serviceFee = 1.50;
+  const isPremium = currentPlan === 'PREMIUM';
+  const rawPriceNum = parseFloat(price);
+  
+  // Aplica desconto de 5% se for Premium
+  const discountPrice = isPremium ? rawPriceNum * 0.95 : rawPriceNum;
+  const finalPricePerLiter = discountPrice.toFixed(2);
+  
+  const serviceFee = isPremium ? 0.00 : 1.50;
   let liters = 20; // Valor padrão
   
   const updateContent = () => {
-    const fuelTotal = liters * priceNum;
+    const fuelTotal = liters * parseFloat(finalPricePerLiter);
     const total = (fuelTotal + serviceFee).toFixed(2);
     
     container.innerHTML = `
@@ -577,9 +881,10 @@ function renderPaymentMethodSelection(container: HTMLElement, station: string, p
       <p class="font-mono text-xs opacity-60 uppercase mb-6">${station}</p>
       
       <div class="grid grid-cols-2 gap-4 mb-4">
-        <div class="bg-black text-white p-4 border-brutal border-white shadow-brutal-sm">
+        <div class="bg-black text-white p-4 border-brutal border-white shadow-brutal-sm relative">
           <div class="font-mono text-[10px] uppercase opacity-60 mb-1">Preço / Litro</div>
-          <div class="text-2xl font-black">R$ ${price}</div>
+          <div class="text-2xl font-black">R$ ${finalPricePerLiter}</div>
+          ${isPremium ? `<div class="absolute -top-2 -right-2 bg-accent-green text-black text-[8px] font-black px-1 border border-black shadow-sm">-5% OFF</div>` : ''}
         </div>
         <div class="bg-black text-white p-4 border-brutal border-white shadow-brutal-sm">
           <div class="font-mono text-[10px] uppercase opacity-60 mb-1 text-accent-neon">Quantidade (L)</div>
@@ -589,8 +894,8 @@ function renderPaymentMethodSelection(container: HTMLElement, station: string, p
       </div>
 
       <div class="font-mono text-[10px] uppercase opacity-60 flex justify-between mb-2 px-1">
-        <span>Subtotal Combustível: R$ ${fuelTotal.toFixed(2)}</span>
-        <span>Taxa de Serviço: R$ ${serviceFee.toFixed(2)}</span>
+        <span>Subtotal: R$ ${fuelTotal.toFixed(2)}</span>
+        <span class="${isPremium ? 'text-accent-green font-bold' : ''}">Taxa de Serviço: R$ ${serviceFee.toFixed(2)} ${isPremium ? '(ISENTO)' : ''}</span>
       </div>
 
       <div class="bg-accent-neon text-black p-5 border-brutal border-black mb-6 shadow-brutal-sm">
@@ -598,9 +903,15 @@ function renderPaymentMethodSelection(container: HTMLElement, station: string, p
           <div class="font-mono font-bold uppercase text-xs">Total a Pagar</div>
           <div id="totalDisplay" class="text-4xl font-black leading-none text-right">R$ ${total}</div>
         </div>
+        ${!isPremium ? `
         <div class="text-[10px] font-mono font-bold uppercase text-right mt-1 opacity-60">
           + R$ ${serviceFee.toFixed(2)} TAXA DE SERVIÇO
         </div>
+        ` : `
+        <div class="text-[10px] font-mono font-bold uppercase text-right mt-1 text-black/60">
+           ISENTO DE TAXAS [PREMIUM]
+        </div>
+        `}
       </div>
 
       <div class="space-y-3">
@@ -636,17 +947,17 @@ function renderPaymentMethodSelection(container: HTMLElement, station: string, p
       updateTotalDisplay();
     });
 
-    document.getElementById('payPix')?.addEventListener('click', () => renderPixPayment(container, (liters * priceNum + serviceFee).toFixed(2)));
-    document.getElementById('payCard')?.addEventListener('click', () => renderCardPayment(container, (liters * priceNum + serviceFee).toFixed(2)));
+    document.getElementById('payPix')?.addEventListener('click', () => renderPixPayment(container, (liters * parseFloat(finalPricePerLiter) + serviceFee).toFixed(2)));
+    document.getElementById('payCard')?.addEventListener('click', () => renderCardPayment(container, (liters * parseFloat(finalPricePerLiter) + serviceFee).toFixed(2)));
   };
 
   const updateTotalDisplay = () => {
-    const fuelTotal = liters * priceNum;
+    const fuelTotal = liters * parseFloat(finalPricePerLiter);
     const total = (fuelTotal + serviceFee).toFixed(2);
     
     // Update Subtotal display if present
     const subtotalDisplay = container.querySelector('.px-1 span:first-child');
-    if (subtotalDisplay) subtotalDisplay.textContent = `Subtotal Combustível: R$ ${fuelTotal.toFixed(2)}`;
+    if (subtotalDisplay) subtotalDisplay.textContent = `Subtotal: R$ ${fuelTotal.toFixed(2)}`;
     
     const totalDisplay = container.querySelector('#totalDisplay');
     if (totalDisplay) totalDisplay.textContent = `R$ ${total}`;

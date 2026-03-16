@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FUELSTRK // MONITORAMENTO URBANO</title>
+    <title>FUEL TRACKER // MONITORAMENTO URBANO</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@500;800&display=swap"
@@ -25,11 +25,15 @@
             <!-- Header -->
             <div class="flex flex-col gap-2">
                 <h1 class="text-5xl font-black leading-none uppercase tracking-tighter italic">
-                    FUEL<br />STRK
+                    FUEL<br />TRACKER
                 </h1>
                 <button id="modeToggle"
                     class="mt-4 bg-white dark:bg-[#222222] border-brutal border-black dark:border-white py-2 px-4 font-mono font-bold uppercase cursor-pointer shadow-brutal-sm text-black dark:text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
                     MODE: LIGHT
+                </button>
+                <button id="plansToggle"
+                    class="mt-2 bg-accent-neon border-brutal border-black py-2 px-4 font-mono font-bold uppercase cursor-pointer shadow-brutal-sm text-black hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
+                    PLANOS: FREE
                 </button>
             </div>
 
@@ -90,6 +94,21 @@
                 class="map-status absolute top-5 right-5 z-[1000] bg-accent-neon text-black border-brutal border-black dark:border-white py-2 px-4 font-mono font-bold uppercase shadow-brutal-sm hidden">
                 FETCHING_OSM_DATA...
             </div>
+            <!-- Search Bar Overlay -->
+            <div class="fixed top-8 left-[420px] right-8 z-[1000] flex justify-center pointer-events-none">
+                <div class="bg-white dark:bg-[#1a1a1a] border-brutal border-black dark:border-white p-2 shadow-brutal flex items-center gap-2 pointer-events-auto w-full max-w-2xl">
+                    <input id="searchState" type="text" placeholder="UF (EX: RO)" class="bg-[#eee] dark:bg-[#222] border-brutal border-black dark:border-white p-2 font-mono font-bold text-xs w-24 uppercase outline-none focus:bg-accent-neon focus:text-black transition-colors" maxlength="2" />
+                    <input id="searchCity" type="text" placeholder="MUNICÍPIO" class="bg-[#eee] dark:bg-[#222] border-brutal border-black dark:border-white p-2 font-mono font-bold text-xs flex-1 uppercase outline-none focus:bg-accent-neon focus:text-black transition-colors" />
+                    <div class="flex items-center gap-1 bg-black text-white px-3 border-brutal border-black">
+                        <span class="font-mono text-[10px] uppercase font-black">R$</span>
+                        <input id="searchPrice" type="text" placeholder="PREÇO" class="bg-transparent text-white p-2 font-mono font-black text-sm w-24 outline-none placeholder:text-white/40" />
+                    </div>
+                    <button id="searchTrigger" class="bg-accent-neon border-brutal border-black p-2 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all shadow-brutal-sm">
+                        <svg class="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </button>
+                </div>
+            </div>
+
             <!-- Leaflet Map Container -->
             <div id="map" class="absolute inset-0 w-full h-full z-0"></div>
 
@@ -102,6 +121,46 @@
                     
                     <div id="modalContent">
                         <!-- Content injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Modal -->
+            <div id="pricingModal" class="hidden fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <div class="bg-white dark:bg-[#1a1a1a] border-brutal border-black dark:border-white w-full max-w-4xl p-8 shadow-brutal relative animate-fadeIn">
+                    <button id="closePricingModal" class="absolute top-4 right-4 font-mono font-black text-2xl hover:text-red-600 transition-colors uppercase">
+                        [X]
+                    </button>
+                    
+                    <h2 class="text-4xl font-black uppercase italic mb-8 tracking-tighter text-black dark:text-white">PLANOS</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Free Plan -->
+                        <div class="plan-card border-brutal border-black dark:border-white p-6 flex flex-col bg-white dark:bg-[#222]">
+                            <h3 class="text-2xl font-black uppercase mb-2 text-black dark:text-white">BÁSICO [FREE]</h3>
+                            <div class="text-4xl font-black mb-6 text-black dark:text-white">R$ 0<span class="text-xs font-mono opacity-50">/MÊS</span></div>
+                            <ul class="font-mono text-xs uppercase space-y-3 mb-8 flex-1 text-black dark:text-white">
+                                <li class="flex items-center gap-2"><span class="text-accent-green">✔</span> Preços de Combustíveis</li>
+                                <li class="flex items-center gap-2"><span class="text-accent-green">✔</span> Localização de Postos</li>
+                                <li class="flex items-center gap-2 text-red-500 line-through opacity-50"><span class="text-red-500">✘</span> Pontos Elétricos (Status/KwH)</li>
+                                <li class="flex items-center gap-2 text-red-500 line-through opacity-50"><span class="text-red-500">✘</span> Hub de Manutenção & Peças</li>
+                            </ul>
+                            <button class="select-plan px-6 py-4 border-brutal border-black bg-black text-white font-black uppercase hover:bg-white hover:text-black transition-all" data-plan="FREE">PLANO ATUAL</button>
+                        </div>
+                        
+                        <!-- Premium Plan -->
+                        <div class="plan-card border-brutal border-black dark:border-white p-6 flex flex-col bg-accent-neon shadow-brutal">
+                            <h3 class="text-2xl font-black uppercase mb-2 text-black">AVANÇADO [PREMIUM]</h3>
+                            <div class="text-4xl font-black mb-6 text-black">R$ 4,99<span class="text-xs font-mono opacity-50">/MÊS</span></div>
+                            <ul class="font-mono text-xs uppercase space-y-3 mb-8 flex-1 text-black">
+                                <li class="flex items-center gap-2"><span class="font-bold underline">✔ TUDO DO PLANO FREE</span></li>
+                                <li class="flex items-center gap-2"><span class="bg-black text-white px-1">NEW</span> TAXA DE SERVIÇO ZERO (R$ 0,00)</li>
+                                <li class="flex items-center gap-2"><span class="bg-black text-white px-1">NEW</span> DESCONTOS EM POSTOS SELECIONADOS</li>
+                                <li class="flex items-center gap-2"><span class="bg-black text-white px-1">NEW</span> STATUS REAL-TIME (ELÉTRICOS)</li>
+                                <li class="flex items-center gap-2"><span class="bg-black text-white px-1">NEW</span> HUB DE MANUTENÇÃO (PREÇO/QUALIDADE)</li>
+                            </ul>
+                            <button class="select-plan px-6 py-4 border-brutal border-black bg-black text-white font-black uppercase hover:bg-white hover:text-black transition-all" data-plan="PREMIUM">UPGRADE AGORA</button>
+                        </div>
                     </div>
                 </div>
             </div>
