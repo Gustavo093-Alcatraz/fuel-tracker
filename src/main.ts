@@ -240,38 +240,67 @@ function showStateInfo(state: StateData, price: string): void {
 }
 
 /**
+ * Busca preços médios por estado na API ANP
+ */
+async function fetchStatePrices(uf: string, produto: string): Promise<number | null> {
+  try {
+    const url = `/api/stations?uf=${uf}&produto=${encodeURIComponent(produto)}&limit=1000`;
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (!result.success || !result.data || result.data.length === 0) {
+      return null;
+    }
+
+    // Calcula preço médio
+    const prices = result.data.map((s: StationData) => s.preco_venda);
+    const avg = prices.reduce((sum: number, price: number) => sum + price, 0) / prices.length;
+    return avg;
+  } catch (error) {
+    console.error(`[API] Erro ao buscar preços de ${uf}:`, error);
+    return null;
+  }
+}
+
+/**
  * Renderiza os marcadores dos estados
  */
-function renderStateMarkers(): void {
+async function renderStateMarkers(): Promise<void> {
   if (!statesGroup || !map) return;
 
   statesGroup.clearLayers();
 
-  statesData.forEach((state) => {
-    let basePrice: number = state.precoMedio;
+  // Mapeia combustível atual para produto da ANP
+  const produtoMap: Record<string, string> = {
+    'Gasolina': 'GASOLINA',
+    'Aditivada': 'GASOLINA',
+    'Etanol': 'ETANOL',
+    'Diesel': 'DIESEL',
+    'S10': 'DIESEL',
+    'Podium': 'GASOLINA',
+  };
+  const produto = produtoMap[currentFuel] || 'GASOLINA';
 
-    // Proporção baseada no combustível selecionado
-    switch (currentFuel) {
-      case 'Gasolina':
-        break;
-      case 'Aditivada':
-        basePrice *= 1.05;
-        break;
-      case 'Etanol':
-        basePrice *= 0.70;
-        break;
-      case 'Diesel':
-        basePrice *= 0.90;
-        break;
-      case 'S10':
-        basePrice *= 0.95;
-        break;
-      case 'Podium':
-        basePrice *= 1.15;
-        break;
+  for (const state of statesData) {
+    // Tenta buscar preço real da API, fallback para preço base
+    let currentPrice: string;
+    const apiPrice = await fetchStatePrices(state.uf, produto);
+
+    if (apiPrice !== null) {
+      currentPrice = (apiPrice * fatorDiario).toFixed(2);
+    } else {
+      // Fallback para preço base simulado
+      let basePrice = state.precoMedio;
+      switch (currentFuel) {
+        case 'Gasolina': break;
+        case 'Aditivada': basePrice *= 1.05; break;
+        case 'Etanol': basePrice *= 0.70; break;
+        case 'Diesel': basePrice *= 0.90; break;
+        case 'S10': basePrice *= 0.95; break;
+        case 'Podium': basePrice *= 1.15; break;
+      }
+      currentPrice = (basePrice * fatorDiario).toFixed(2);
     }
-
-    const currentPrice: string = (basePrice * fatorDiario).toFixed(2);
 
     const brutalistIcon = createBrutalistIcon(currentPrice);
     const marker = L.marker([state.lat, state.lng], { icon: brutalistIcon });
@@ -285,7 +314,7 @@ function renderStateMarkers(): void {
     });
 
     statesGroup?.addLayer(marker);
-  });
+  }
 }
 
 /**
@@ -373,7 +402,7 @@ async function fetchStations(): Promise<void> {
 /**
  * Alterna entre marcadores de estado e postos baseado no zoom
  */
-function handleZoomChange(): void {
+async function handleZoomChange(): Promise<void> {
   if (!map || !markersGroup || !statesGroup) return;
 
   const zoom = map.getZoom();
@@ -381,7 +410,7 @@ function handleZoomChange(): void {
   if (zoom < 7) {
     if (map.hasLayer(markersGroup)) map.removeLayer(markersGroup);
     if (!map.hasLayer(statesGroup)) map.addLayer(statesGroup);
-    renderStateMarkers();
+    await renderStateMarkers();
   } else {
     if (map.hasLayer(statesGroup)) map.removeLayer(statesGroup);
     if (!map.hasLayer(markersGroup)) map.addLayer(markersGroup);
