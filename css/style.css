@@ -203,6 +203,11 @@ html {
     cursor: crosshair;
 }
 
+#map {
+    width: 100%;
+    height: 100%;
+}
+
 /* Map Pins */
 .pin {
     width: 80px;
@@ -262,6 +267,15 @@ html {
 .leaflet-container {
     font-family: 'Inter', sans-serif;
     background: var(--bg-color);
+    z-index: 1;
+}
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-control {
+    z-index: inherit;
 }
 
 /* Marcador Customizado (DivIcon) */
