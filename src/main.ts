@@ -1,31 +1,10 @@
 import './style.css';
 import L from 'leaflet';
+import type { StationData } from './types';
 
 // ============================================
 // INTERFACES E TIPOS
 // ============================================
-
-interface OverpassTags {
-  name?: string;
-  brand?: string;
-  [key: string]: string | undefined;
-}
-
-interface OverpassElement {
-  type: 'node' | 'way' | 'relation';
-  id: number;
-  lat?: number;
-  lon?: number;
-  center?: {
-    lat: number;
-    lon: number;
-  };
-  tags?: OverpassTags;
-}
-
-interface OverpassResponse {
-  elements: OverpassElement[];
-}
 
 interface Station {
   id: number;
@@ -33,6 +12,10 @@ interface Station {
   lat: number;
   lng: number;
   currentPrice: string;
+  endereco?: string;
+  bairro?: string;
+  municipio?: string;
+  produto?: string;
 }
 
 interface StateData {
@@ -182,17 +165,26 @@ function showPost(name: string, price: string): void {
   const timeString: string = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
   const stationId: string | number = currentStation ? currentStation.id : 'N/A';
 
+  // Informações adicionais do posto (API ANP)
+  const endereco = currentStation?.endereco || '';
+  const bairro = currentStation?.bairro || '';
+  const municipio = currentStation?.municipio || '';
+  const produto = currentStation?.produto || currentFuel;
+
   dynamicCard.innerHTML = `
     <div class="post-details animate-fadeIn">
       <span class="font-mono font-bold text-xs" style="color: var(--accent-neon); background: #000; padding: 2px 5px;">
-        OSM_NODE_${stationId}
+        ANP_${stationId}
       </span>
       <h2 class="text-3xl font-black leading-none uppercase mt-[10px]">${name}</h2>
-      <div class="font-mono font-bold text-xs uppercase mt-2">${currentFuel}</div>
+      <div class="font-mono font-bold text-xs uppercase mt-2">${produto}</div>
       <div class="font-mono font-bold text-[4rem] leading-none tracking-tighter my-2" style="color: var(--accent-neon); -webkit-text-stroke: 1px var(--border-color, #000);">
-        ${price}
+        R$ ${price}
       </div>
-      <div class="font-mono text-xs uppercase opacity-60">
+      ${endereco ? `<div class="font-mono text-xs uppercase opacity-60 mt-2">${endereco}</div>` : ''}
+      ${bairro ? `<div class="font-mono text-xs uppercase opacity-60">${bairro}</div>` : ''}
+      ${municipio ? `<div class="font-mono text-xs uppercase opacity-60">${municipio}</div>` : ''}
+      <div class="font-mono text-xs uppercase opacity-60 mt-2">
         Última atualização: Hoje, ${timeString}
       </div>
     </div>
@@ -297,7 +289,7 @@ function renderStateMarkers(): void {
 }
 
 /**
- * Busca postos de combustível na Overpass API
+ * Busca postos de combustível na API ANP (via backend)
  */
 async function fetchStations(): Promise<void> {
   if (!map || !markersGroup) return;
@@ -312,47 +304,67 @@ async function fetchStations(): Promise<void> {
   markersGroup.clearLayers();
 
   const bounds = map.getBounds();
-  const sul = bounds.getSouth();
-  const oeste = bounds.getWest();
-  const norte = bounds.getNorth();
-  const leste = bounds.getEast();
+  const center = bounds.getCenter();
+  const lat = center.lat;
+  const lng = center.lng;
 
-  // Query Overpass
-  const query = `[out:json][timeout:25];(node["amenity"="fuel"](${sul},${oeste},${norte},${leste});way["amenity"="fuel"](${sul},${oeste},${norte},${leste}););out center;`;
-  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+  // Calcula raio aproximado baseado no zoom
+  const radius = map.getZoom() >= 12 ? 0.05 : 0.1; // ~5-10km
+
+  // Mapeia combustível atual para produto da ANP
+  const produtoMap: Record<string, string> = {
+    'Gasolina': 'GASOLINA',
+    'Aditivada': 'GASOLINA',
+    'Etanol': 'ETANOL',
+    'Diesel': 'DIESEL',
+    'S10': 'DIESEL',
+    'Podium': 'GASOLINA',
+  };
+  const produto = produtoMap[currentFuel] || 'GASOLINA';
+
+  const url = `/api/stations/nearby?lat=${lat}&lng=${lng}&radius=${radius}&produto=${encodeURIComponent(produto)}`;
 
   try {
     const response = await fetch(url);
-    const data: OverpassResponse = await response.json();
+    const result = await response.json();
 
-    data.elements.forEach((element: OverpassElement) => {
-      // Garante captura de coordenadas para 'node' ou 'way'
-      const lat: number = element.lat ?? element.center?.lat ?? 0;
-      const lon: number = element.lon ?? element.center?.lon ?? 0;
+    if (!result.success || !result.data) {
+      console.warn('[API] Sem dados de postos');
+      return;
+    }
 
-      const name: string = element.tags?.name ?? element.tags?.brand ?? 'Posto Independente';
-      const currentPrice: string = simulatePrice(currentFuel);
+    const stations: StationData[] = result.data;
 
-      const station: Station = {
-        id: element.id,
-        name,
-        lat,
-        lng: lon,
-        currentPrice,
-      };
+    stations.forEach((station: StationData) => {
+      if (!station.latitude || !station.longitude) return;
+
+      const currentPrice: string = station.preco_venda.toFixed(2);
+      const name: string = station.revenda || 'Posto Independente';
 
       const brutalistIcon = createBrutalistIcon(currentPrice);
-      const marker = L.marker([lat, lon], { icon: brutalistIcon });
+      const marker = L.marker([station.latitude, station.longitude], { icon: brutalistIcon });
 
       marker.on('click', () => {
-        currentStation = station;
+        currentStation = {
+          id: parseInt(station.cnpj_revenda) || Math.random() * 1000000,
+          name,
+          lat: station.latitude || 0,
+          lng: station.longitude || 0,
+          currentPrice,
+          endereco: station.endereco,
+          bairro: station.bairro,
+          municipio: station.municipio,
+          produto: station.produto,
+        };
         updateStationView();
       });
 
       markersGroup?.addLayer(marker);
     });
+
+    console.log(`[API] ${stations.length} postos carregados`);
   } catch (error) {
-    console.error('[SYS] Erro ao buscar dados na Overpass API:', error);
+    console.error('[API] Erro ao buscar dados:', error);
   } finally {
     if (statusBadge) statusBadge.classList.remove('active');
   }
