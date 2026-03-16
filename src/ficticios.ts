@@ -254,3 +254,7 @@ export function calcularPrecoMedioEstado(
   const soma = postosEstado.reduce((acc, p) => acc + p.precos[produto], 0);
   return soma / postosEstado.length;
 }
+/**
+ * Todos os postos gerados
+ */
+export const todosPostos: PostoFicticio[] = gerarTodosPostos();

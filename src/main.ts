@@ -1,7 +1,7 @@
 import './style.css';
 import L from 'leaflet';
-import type { StationData } from './types';
-import { gerarTodosPostos, buscarPostosProximos, calcularPrecoMedioEstado, type PostoFicticio } from './ficticios';
+import { postosPortoVelho, type PostoFicticio } from './portoVelho';
+import { todosPostos, municipiosBase, type PostoFicticio as PostoGeral } from './ficticios';
 
 // ============================================
 // INTERFACES E TIPOS
@@ -71,9 +71,14 @@ let map: L.Map | null = null;
 let currentTileLayer: L.TileLayer | null = null;
 let markersGroup: L.LayerGroup | null = null;
 let statesGroup: L.LayerGroup | null = null;
+let municipiosGroup: L.LayerGroup | null = null;
 
-// Postos fictícios (cache)
-let postosFicticiosCache: PostoFicticio[] = [];
+// Cache de Marcadores
+const markerCache = new Map<string, L.Marker>();
+let debounceTimer: number | null = null;
+
+// Postos fictícios (Porto Velho)
+let postosFicticiosCache: PostoFicticio[] = postosPortoVelho;
 
 // Fator diário para simular flutuação de mercado (Variação entre -2% e +2%)
 const fatorDiario: number = 1.00 + (Math.random() * 0.04 - 0.02);
@@ -134,12 +139,13 @@ function simulatePrice(fuelType: string): string {
 /**
  * Cria um ícone brutalist para os marcadores
  */
-function createBrutalistIcon(price: string): L.DivIcon {
+function createBrutalistIcon(price: string, type: 'posto' | 'municipio' | 'estado' = 'posto'): L.DivIcon {
+  const className = type === 'posto' ? 'pin' : (type === 'municipio' ? 'pin-municipio' : 'pin-estado');
   return L.divIcon({
-    html: `<div class="pin">${price}</div>`,
+    html: `<div class="${className}">${price}</div>`,
     iconSize: [80, 80],
     iconAnchor: [40, 80],
-    className: 'leaflet-brutalist-marker',
+    className: `leaflet-brutalist-marker marker-${type}`,
   });
 }
 
@@ -182,7 +188,7 @@ function showPost(name: string, price: string): void {
       </span>
       <h2 class="text-3xl font-black leading-none uppercase mt-[10px]">${name}</h2>
       <div class="font-mono font-bold text-xs uppercase mt-2">${produto}</div>
-      <div class="font-mono font-bold text-[4rem] leading-none tracking-tighter my-2" style="color: var(--accent-neon); -webkit-text-stroke: 1px var(--border-color, #000);">
+      <div class="font-mono font-bold text-[4rem] leading-none tracking-tighter my-2" style="color: var(--fuel-color); -webkit-text-stroke: 1px var(--border-color, #000);">
         R$ ${price}
       </div>
       ${endereco ? `<div class="font-mono text-xs uppercase opacity-60 mt-2">${endereco}</div>` : ''}
@@ -191,8 +197,13 @@ function showPost(name: string, price: string): void {
       <div class="font-mono text-xs uppercase opacity-60 mt-2">
         Última atualização: Hoje, ${timeString}
       </div>
+      <button id="buyButton" class="mt-6 w-full bg-white dark:bg-[#222222] border-brutal border-black dark:border-white py-4 px-6 font-black text-lg uppercase cursor-pointer shadow-brutal-sm hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all flex items-center justify-center gap-3">
+        <span class="text-2xl">⚡</span> COMPRAR AGORA
+      </button>
     </div>
   `;
+
+  document.getElementById('buyButton')?.addEventListener('click', openPaymentModal);
 
   // Trigger reflow para reiniciar animação
   const card = dynamicCard.querySelector('.post-details') as HTMLElement | null;
@@ -222,7 +233,7 @@ function showStateInfo(state: StateData, price: string): void {
       </span>
       <h2 class="text-3xl font-black leading-none uppercase mt-[10px]">${state.name}</h2>
       <div class="font-mono font-bold text-xs uppercase mt-2">${currentFuel}</div>
-      <div class="font-mono font-bold text-[4rem] leading-none tracking-tighter my-2" style="color: var(--accent-neon); -webkit-text-stroke: 1px var(--border-color, #000);">
+      <div class="font-mono font-bold text-[4rem] leading-none tracking-tighter my-2" style="color: var(--fuel-color); -webkit-text-stroke: 1px var(--border-color, #000);">
         R$ ${price}
       </div>
       <div class="font-mono text-xs uppercase opacity-60 mt-2">
@@ -244,48 +255,7 @@ function showStateInfo(state: StateData, price: string): void {
 }
 
 /**
- * Busca preços médios por estado na API ANP (com fallback fictício)
- */
-async function fetchStatePrices(uf: string, produto: string): Promise<number | null> {
-  // Tenta API primeiro
-  try {
-    const url = `/api/stations?uf=${uf}&produto=${encodeURIComponent(produto)}&limit=1000`;
-    const response = await fetch(url);
-    const result = await response.json();
-
-    if (!result.success || !result.data || result.data.length === 0) {
-      // Fallback para dados fictícios
-      return usarPrecoFicticioEstado(uf, produto);
-    }
-
-    // Calcula preço médio da API
-    const prices = result.data.map((s: StationData) => s.preco_venda);
-    const avg = prices.reduce((sum: number, price: number) => sum + price, 0) / prices.length;
-    return avg;
-  } catch (error) {
-    console.warn(`[API] Erro ao buscar preços de ${uf}, usando fictício`);
-    return usarPrecoFicticioEstado(uf, produto);
-  }
-}
-
-/**
- * Obtém preço fictício para um estado
- */
-function usarPrecoFicticioEstado(uf: string, produto: string): number | null {
-  if (postosFicticiosCache.length === 0) return null;
-
-  const produtoMap: Record<string, keyof PostoFicticio['precos']> = {
-    'GASOLINA': 'gasolina',
-    'ETANOL': 'etanol',
-    'DIESEL': 'diesel',
-  };
-  const produtoKey = produtoMap[produto] || 'gasolina';
-
-  return calcularPrecoMedioEstado(uf, produtoKey, postosFicticiosCache);
-}
-
-/**
- * Renderiza os marcadores dos estados
+ * Renderiza os marcadores dos estados (preços fictícios baseados em Porto Velho)
  */
 async function renderStateMarkers(): Promise<void> {
   if (!statesGroup || !map) {
@@ -293,216 +263,163 @@ async function renderStateMarkers(): Promise<void> {
     return;
   }
 
-  console.log('[ESTADOS] Iniciando renderização...');
-
   statesGroup.clearLayers();
 
-  // Mapeia combustível atual para produto da ANP
-  const produtoMap: Record<string, string> = {
-    'Gasolina': 'GASOLINA',
-    'Aditivada': 'GASOLINA',
-    'Etanol': 'ETANOL',
-    'Diesel': 'DIESEL',
-    'S10': 'DIESEL',
-    'Podium': 'GASOLINA',
+  const fuelMultipliers: Record<string, number> = {
+    'Gasolina': 1.0,
+    'Aditivada': 1.05,
+    'Etanol': 0.70,
+    'Diesel': 0.90,
+    'S10': 0.95,
+    'Podium': 1.15,
   };
-  const produto = produtoMap[currentFuel] || 'GASOLINA';
+  const multiplier = fuelMultipliers[currentFuel] || 1.0;
 
-  let count = 0;
-  for (const state of statesData) {
-    // Tenta buscar preço real da API, fallback para preço base
-    let currentPrice: string;
-    const apiPrice = await fetchStatePrices(state.uf, produto);
+  statesData.forEach((state) => {
+    const basePrice = state.precoMedio * multiplier;
+    const currentPrice = (basePrice * fatorDiario).toFixed(2);
+    const cacheKey = `state-${state.uf}-${currentFuel}`;
 
-    if (apiPrice !== null) {
-      console.log(`[ESTADOS] ${state.uf}: R$ ${apiPrice.toFixed(2)} (API)`);
-      currentPrice = (apiPrice * fatorDiario).toFixed(2);
+    let marker = markerCache.get(cacheKey);
+    if (!marker) {
+      const brutalistIcon = createBrutalistIcon(currentPrice, 'estado');
+      marker = L.marker([state.lat, state.lng], { icon: brutalistIcon });
+      marker.on('click', () => {
+        if (map) map.setView([state.lat, state.lng], 8);
+        showStateInfo(state, currentPrice);
+      });
+      markerCache.set(cacheKey, marker);
     } else {
-      // Fallback para preço base simulado
-      let basePrice = state.precoMedio;
-      switch (currentFuel) {
-        case 'Gasolina': break;
-        case 'Aditivada': basePrice *= 1.05; break;
-        case 'Etanol': basePrice *= 0.70; break;
-        case 'Diesel': basePrice *= 0.90; break;
-        case 'S10': basePrice *= 0.95; break;
-        case 'Podium': basePrice *= 1.15; break;
-      }
-      console.log(`[ESTADOS] ${state.uf}: R$ ${basePrice.toFixed(2)} (Simulado)`);
-      currentPrice = (basePrice * fatorDiario).toFixed(2);
+      // Update icon if fuel changed (though cache key includes fuel, so this is just incase)
+      marker.setIcon(createBrutalistIcon(currentPrice, 'estado'));
     }
 
-    const brutalistIcon = createBrutalistIcon(currentPrice);
-    const marker = L.marker([state.lat, state.lng], { icon: brutalistIcon });
-
-    marker.on('click', () => {
-      if (map) {
-        map.setView([state.lat, state.lng], 8);
-      }
-      // Mostra informação do estado selecionado
-      showStateInfo(state, currentPrice);
-    });
-
-    statesGroup.addLayer(marker);
-    count++;
-  }
-
-  console.log(`[ESTADOS] ${count} estados renderizados`);
+    statesGroup?.addLayer(marker);
+  });
 }
 
 /**
- * Busca postos de combustível (API ANP + fallback fictício)
+ * Renderiza os marcadores dos municípios (Zoom 5-8)
+ */
+async function renderMunicipiosMarkers(): Promise<void> {
+  if (!municipiosGroup || !map) return;
+
+  municipiosGroup.clearLayers();
+
+  const fuelMultipliers: Record<string, number> = {
+    'Gasolina': 1.0,
+    'Aditivada': 1.05,
+    'Etanol': 0.70,
+    'Diesel': 0.90,
+    'S10': 0.95,
+    'Podium': 1.15,
+  };
+  const multiplier = fuelMultipliers[currentFuel] || 1.0;
+
+  // Filtra municípios visíveis
+  const bounds = map.getBounds();
+  const visibleMunicipios = municipiosBase.filter(m => bounds.contains([m.lat, m.lng]));
+
+  visibleMunicipios.forEach((m) => {
+    const basePrice = m.precoBaseGasolina * multiplier;
+    const currentPrice = (basePrice * fatorDiario).toFixed(2);
+    const cacheKey = `mun-${m.ibge}-${currentFuel}`;
+
+    let marker = markerCache.get(cacheKey);
+    if (!marker) {
+      const brutalistIcon = createBrutalistIcon(currentPrice, 'municipio');
+      marker = L.marker([m.lat, m.lng], { icon: brutalistIcon });
+      marker.on('click', () => {
+        if (map) map.setView([m.lat, m.lng], 12);
+        // Reuse showStateInfo for now as the format is similar
+        showStateInfo({ uf: m.uf, name: m.nome, lat: m.lat, lng: m.lng, precoMedio: m.precoBaseGasolina }, currentPrice);
+      });
+      markerCache.set(cacheKey, marker);
+    } else {
+      marker.setIcon(createBrutalistIcon(currentPrice, 'municipio'));
+    }
+    municipiosGroup?.addLayer(marker);
+  });
+}
+
+/**
+ * Busca postos de combustível (Porto Velho - fictícios)
  */
 async function fetchStations(): Promise<void> {
   if (!map || !markersGroup) return;
 
-  // Evita chamadas excessivas se o zoom estiver muito distante
-  if (map.getZoom() < 7) return;
-
   const statusBadge = document.getElementById('mapStatus');
   if (statusBadge) statusBadge.classList.add('active');
 
-  // Limpa marcadores antigos
   markersGroup.clearLayers();
 
   const bounds = map.getBounds();
-  const center = bounds.getCenter();
-  const lat = center.lat;
-  const lng = center.lng;
-
-  // Calcula raio aproximado baseado no zoom
-  const radius = map.getZoom() >= 12 ? 0.05 : 0.15; // ~5-15km
-
-  // Mapeia combustível atual para produto
-  const produtoMap: Record<string, string> = {
-    'Gasolina': 'GASOLINA',
-    'Aditivada': 'GASOLINA',
-    'Etanol': 'ETANOL',
-    'Diesel': 'DIESEL',
-    'S10': 'DIESEL',
-    'Podium': 'GASOLINA',
+  const produtoKeyMap: Record<string, keyof PostoGeral['precos']> = {
+    'Gasolina': 'gasolina',
+    'Aditivada': 'aditivada',
+    'Etanol': 'etanol',
+    'Diesel': 'diesel',
+    'S10': 's10',
+    'Podium': 'podium',
   };
-  const produto = produtoMap[currentFuel] || 'GASOLINA';
+  const produtoKey = produtoKeyMap[currentFuel] || 'gasolina';
 
-  try {
-    // Tenta API primeiro
-    const url = `/api/stations/nearby?lat=${lat}&lng=${lng}&radius=${radius}&produto=${encodeURIComponent(produto)}`;
-    const response = await fetch(url);
-    const result = await response.json();
+  // Usar todos os postos para escala global
+  const postosVisiveis = todosPostos.filter(posto => bounds.contains([posto.lat, posto.lng]));
 
-    if (result.success && result.data && result.data.length > 0) {
-      // Usa dados da API
-      const stations: StationData[] = result.data;
-
-      stations.forEach((station: StationData) => {
-        if (!station.latitude || !station.longitude) return;
-
-        const currentPrice: string = station.preco_venda.toFixed(2);
-        const name: string = station.revenda || 'Posto Independente';
-
-        const brutalistIcon = createBrutalistIcon(currentPrice);
-        const marker = L.marker([station.latitude, station.longitude], { icon: brutalistIcon });
-
-        marker.on('click', () => {
-          currentStation = {
-            id: parseInt(station.cnpj_revenda) || Math.random() * 1000000,
-            name,
-            lat: station.latitude || 0,
-            lng: station.longitude || 0,
-            currentPrice,
-            endereco: station.endereco,
-            bairro: station.bairro,
-            municipio: station.municipio,
-            produto: station.produto,
-          };
-          updateStationView();
-        });
-
-        markersGroup?.addLayer(marker);
-      });
-
-      console.log(`[API] ${stations.length} postos carregados`);
-    } else {
-      // Fallback para postos fictícios
-      usarPostosFicticios(lat, lng, radius, produto);
-    }
-  } catch (error) {
-    console.warn('[API] Erro, usando postos fictícios');
-    usarPostosFicticios(lat, lng, radius, produto);
-  } finally {
-    if (statusBadge) statusBadge.classList.remove('active');
-  }
-}
-
-/**
- * Renderiza postos fictícios no mapa
- */
-function usarPostosFicticios(lat: number, lng: number, radius: number, produto: string): void {
-  if (postosFicticiosCache.length === 0) {
-    console.warn('[FICTÍCIOS] Cache vazio');
-    return;
-  }
-
-  const postosProximos = buscarPostosProximos(lat, lng, radius, postosFicticiosCache);
-
-  if (postosProximos.length === 0) {
-    console.log('[FICTÍCIOS] Nenhum posto próximo encontrado');
-    return;
-  }
-
-  const produtoKeyMap: Record<string, keyof PostoFicticio['precos']> = {
-    'GASOLINA': 'gasolina',
-    'ETANOL': 'etanol',
-    'DIESEL': 'diesel',
-  };
-  const produtoKey = produtoKeyMap[produto] || 'gasolina';
-
-  postosProximos.forEach((posto) => {
+  postosVisiveis.forEach((posto) => {
     const currentPrice: string = posto.precos[produtoKey].toFixed(2);
-    const brutalistIcon = createBrutalistIcon(currentPrice);
-    const marker = L.marker([posto.lat, posto.lng], { icon: brutalistIcon });
+    const cacheKey = `posto-${posto.id}-${currentFuel}`;
 
-    marker.on('click', () => {
-      currentStation = {
-        id: posto.id,
-        name: posto.nome,
-        lat: posto.lat,
-        lng: posto.lng,
-        currentPrice,
-        endereco: posto.endereco,
-        bairro: posto.bairro,
-        municipio: posto.municipio,
-        produto: currentFuel,
-      };
-      updateStationView();
-    });
-
+    let marker = markerCache.get(cacheKey);
+    if (!marker) {
+      const brutalistIcon = createBrutalistIcon(currentPrice, 'posto');
+      marker = L.marker([posto.lat, posto.lng], { icon: brutalistIcon });
+      marker.on('click', () => {
+        currentStation = {
+          id: posto.id,
+          name: posto.nome,
+          lat: posto.lat,
+          lng: posto.lng,
+          currentPrice,
+          endereco: posto.endereco,
+          bairro: posto.bairro,
+          municipio: posto.municipio,
+          produto: currentFuel,
+        };
+        updateStationView();
+      });
+      markerCache.set(cacheKey, marker);
+    } else {
+      marker.setIcon(createBrutalistIcon(currentPrice, 'posto'));
+    }
     markersGroup?.addLayer(marker);
   });
 
-  console.log(`[FICTÍCIOS] ${postosProximos.length} postos renderizados`);
+  if (statusBadge) statusBadge.classList.remove('active');
 }
 
 /**
  * Alterna entre marcadores de estado e postos baseado no zoom
  */
 async function handleZoomChange(): Promise<void> {
-  if (!map || !markersGroup || !statesGroup) {
-    console.warn('[ZOOM] Grupos não inicializados');
-    return;
-  }
+  if (!map || !markersGroup || !statesGroup || !municipiosGroup) return;
 
   const zoom = map.getZoom();
-  console.log(`[ZOOM] Nível: ${zoom}`);
 
-  if (zoom < 7) {
-    console.log('[ZOOM] Renderizando estados');
+  if (zoom < 5) {
     if (map.hasLayer(markersGroup)) map.removeLayer(markersGroup);
+    if (map.hasLayer(municipiosGroup)) map.removeLayer(municipiosGroup);
     if (!map.hasLayer(statesGroup)) map.addLayer(statesGroup);
     await renderStateMarkers();
-  } else {
-    console.log('[ZOOM] Renderizando postos');
+  } else if (zoom >= 5 && zoom <= 8) {
     if (map.hasLayer(statesGroup)) map.removeLayer(statesGroup);
+    if (map.hasLayer(markersGroup)) map.removeLayer(markersGroup);
+    if (!map.hasLayer(municipiosGroup)) map.addLayer(municipiosGroup);
+    await renderMunicipiosMarkers();
+  } else {
+    if (map.hasLayer(statesGroup)) map.removeLayer(statesGroup);
+    if (map.hasLayer(municipiosGroup)) map.removeLayer(municipiosGroup);
     if (!map.hasLayer(markersGroup)) map.addLayer(markersGroup);
     fetchStations();
   }
@@ -518,17 +435,15 @@ async function initApp(): Promise<void> {
     return;
   }
 
-  // Inicializa postos fictícios
-  console.log('[SYS] Gerando postos fictícios...');
-  postosFicticiosCache = gerarTodosPostos(12); // 12 postos por município
-  console.log(`[SYS] ${postosFicticiosCache.length} postos fictícios gerados`);
+  console.log(`[SYS] ${postosFicticiosCache.length} postos de Porto Velho carregados`);
 
-  // Inicializa o mapa focado no Brasil
+  // Inicializa o mapa focado em Porto Velho, RO
   map = L.map('map', {
     zoomControl: false,
   });
 
-  map.setView([-14.2350, -51.9253], 4);
+  // Foca em Porto Velho no zoom 11
+  map.setView([-8.7619, -63.9039], 11);
 
   // Define o estilo de mapa inicial baseado no dark mode
   const isDark: boolean = document.documentElement.classList.contains('dark');
@@ -538,10 +453,14 @@ async function initApp(): Promise<void> {
   // Camadas de grupo para marcadores
   markersGroup = L.layerGroup().addTo(map);
   statesGroup = L.layerGroup().addTo(map);
+  municipiosGroup = L.layerGroup().addTo(map);
 
-  // Evento: buscar novos postos ao mover o mapa
+  // Evento: buscar novos postos ao mover o mapa (com debounce)
   map.on('moveend', () => {
-    if (map && map.getZoom() >= 7) fetchStations();
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(async () => {
+      if (map) await handleZoomChange();
+    }, 200);
   });
 
   // Redimensionamento responsivo
@@ -558,7 +477,7 @@ async function initApp(): Promise<void> {
       map.invalidateSize();
       await handleZoomChange();
     }
-  }, 500);
+  }, 300);
 }
 
 /**
@@ -596,6 +515,7 @@ function setupEventListeners(): void {
       target.classList.add('active', 'bg-accent-neon', 'text-black');
 
       currentFuel = fuelType;
+      document.documentElement.setAttribute('data-fuel', fuelType.toLowerCase());
 
       // Atualiza visualização baseado no zoom
       if (map) {
@@ -612,6 +532,226 @@ function setupEventListeners(): void {
       }
     });
   });
+
+  // Modal Control
+  const modal = document.getElementById('paymentModal');
+  const closeBtn = document.getElementById('closeModal');
+  
+  closeBtn?.addEventListener('click', () => {
+    modal?.classList.add('hidden');
+  });
+
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) modal.classList.add('hidden');
+  });
+}
+
+/**
+ * Abre o modal de pagamento
+ */
+function openPaymentModal(): void {
+  const modal = document.getElementById('paymentModal');
+  const modalContent = document.getElementById('modalContent');
+  if (!modal || !modalContent || !currentStation) return;
+
+  const price = currentStation.currentPrice;
+  const stationName = currentStation.name;
+
+  modal.classList.remove('hidden');
+  
+  // Initial View: Selection
+  renderPaymentMethodSelection(modalContent, stationName, price);
+}
+
+function renderPaymentMethodSelection(container: HTMLElement, station: string, price: string): void {
+  const priceNum = parseFloat(price);
+  const serviceFee = 1.50;
+  let liters = 20; // Valor padrão
+  
+  const updateContent = () => {
+    const fuelTotal = liters * priceNum;
+    const total = (fuelTotal + serviceFee).toFixed(2);
+    
+    container.innerHTML = `
+      <h3 class="text-3xl font-black uppercase italic mb-1 tracking-tighter">RESERVA DE BICO</h3>
+      <p class="font-mono text-xs opacity-60 uppercase mb-6">${station}</p>
+      
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="bg-black text-white p-4 border-brutal border-white shadow-brutal-sm">
+          <div class="font-mono text-[10px] uppercase opacity-60 mb-1">Preço / Litro</div>
+          <div class="text-2xl font-black">R$ ${price}</div>
+        </div>
+        <div class="bg-black text-white p-4 border-brutal border-white shadow-brutal-sm">
+          <div class="font-mono text-[10px] uppercase opacity-60 mb-1 text-accent-neon">Quantidade (L)</div>
+          <input type="number" id="litersInput" value="${liters}" min="1" step="1" 
+            class="bg-transparent text-2xl font-black w-full outline-none border-b-2 border-accent-neon text-accent-neon" />
+        </div>
+      </div>
+
+      <div class="font-mono text-[10px] uppercase opacity-60 flex justify-between mb-2 px-1">
+        <span>Subtotal Combustível: R$ ${fuelTotal.toFixed(2)}</span>
+        <span>Taxa de Serviço: R$ ${serviceFee.toFixed(2)}</span>
+      </div>
+
+      <div class="bg-accent-neon text-black p-5 border-brutal border-black mb-6 shadow-brutal-sm">
+        <div class="flex justify-between items-center">
+          <div class="font-mono font-bold uppercase text-xs">Total a Pagar</div>
+          <div id="totalDisplay" class="text-4xl font-black leading-none text-right">R$ ${total}</div>
+        </div>
+        <div class="text-[10px] font-mono font-bold uppercase text-right mt-1 opacity-60">
+          + R$ ${serviceFee.toFixed(2)} TAXA DE SERVIÇO
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <button id="payPix" class="w-full border-brutal border-black dark:border-white p-4 font-black uppercase flex items-center gap-4 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all group">
+          <div class="w-10 h-10 border-2 border-black dark:border-white flex items-center justify-center group-hover:bg-accent-neon group-hover:border-black group-hover:text-black transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          </div>
+          <span>PIX (INSTANTÂNEO)</span>
+        </button>
+        <button id="payCard" class="w-full border-brutal border-black dark:border-white p-4 font-black uppercase flex items-center gap-4 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all group">
+          <div class="w-10 h-10 border-2 border-black dark:border-white flex items-center justify-center group-hover:bg-accent-neon group-hover:border-black group-hover:text-black transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+          </div>
+          <span>CARTÃO DE CRÉDITO</span>
+        </button>
+      </div>
+
+      <div class="mt-8 p-4 bg-[#f0f0f0] dark:bg-[#2a2a2a] border-l-brutal border-black dark:border-white">
+        <h4 class="font-black text-xs uppercase mb-1 flex items-center gap-2">
+          <span class="text-lg">⚠️</span> IMPORTANTE_INFO
+        </h4>
+        <p class="font-mono text-[11px] uppercase leading-snug font-bold">
+          ESTA RESERVA GARANTE O PREÇO ATUAL POR <span class="text-red-600 dark:text-accent-neon">02 HORAS</span>. 
+          APRESENTE O QR CODE OU COMPROVANTE DIGITAL AO FRENTISTA PARA LIBERAR O ABASTECIMENTO IMEDIATAMENTE.
+        </p>
+      </div>
+    `;
+
+    // Re-attach listeners
+    const input = document.getElementById('litersInput') as HTMLInputElement;
+    input?.addEventListener('input', (e) => {
+      liters = parseFloat((e.target as HTMLInputElement).value) || 0;
+      updateTotalDisplay();
+    });
+
+    document.getElementById('payPix')?.addEventListener('click', () => renderPixPayment(container, (liters * priceNum + serviceFee).toFixed(2)));
+    document.getElementById('payCard')?.addEventListener('click', () => renderCardPayment(container, (liters * priceNum + serviceFee).toFixed(2)));
+  };
+
+  const updateTotalDisplay = () => {
+    const fuelTotal = liters * priceNum;
+    const total = (fuelTotal + serviceFee).toFixed(2);
+    
+    // Update Subtotal display if present
+    const subtotalDisplay = container.querySelector('.px-1 span:first-child');
+    if (subtotalDisplay) subtotalDisplay.textContent = `Subtotal Combustível: R$ ${fuelTotal.toFixed(2)}`;
+    
+    const totalDisplay = container.querySelector('#totalDisplay');
+    if (totalDisplay) totalDisplay.textContent = `R$ ${total}`;
+  };
+
+  updateContent();
+}
+
+function renderPixPayment(container: HTMLElement, price: string): void {
+  container.innerHTML = `
+    <h3 class="text-2xl font-black uppercase italic mb-2">Pagamento via PIX</h3>
+    <p class="font-mono text-xs opacity-60 uppercase mb-6">Escaneie o QR Code abaixo</p>
+    
+    <div class="bg-white p-4 border-brutal border-black flex flex-col items-center mb-6">
+      <img src="C:/Users/gustavo.lobo/.gemini/antigravity/brain/a625fdab-5e23-4ab2-8488-43e786d8293f/qr_code_pix_1773693493555.png" alt="PIX QR Code" class="w-48 h-48 mb-4 grayscale contrast-125" />
+      <div class="font-mono text-[10px] bg-black text-white px-2 py-1 uppercase tracking-widest">PIX_TOKEN: 8273x_RVM_FUEL</div>
+      <div class="mt-4 font-black text-2xl">TOTAL: R$ ${price}</div>
+    </div>
+
+    <div class="bg-[#faff00] text-black p-4 border-brutal border-black mb-6 animate-pulse">
+      <div class="font-mono text-xs font-bold uppercase text-center">Aguardando confirmação do banco...</div>
+    </div>
+
+    <button id="backToMethods" class="w-full border-brutal border-black dark:border-white p-2 font-mono font-bold text-xs uppercase hover:bg-black hover:text-white transition-all">
+      VOLTAR
+    </button>
+  `;
+
+  // Simulação de confirmação automática após 5 segundos para fins de demo
+  setTimeout(() => renderSuccessScreen(container, price), 5000);
+
+  document.getElementById('backToMethods')?.addEventListener('click', () => {
+    if (currentStation) renderPaymentMethodSelection(container, currentStation.name, price);
+  });
+}
+
+function renderCardPayment(container: HTMLElement, price: string): void {
+  container.innerHTML = `
+    <h3 class="text-2xl font-black uppercase italic mb-2">Cartão de Crédito</h3>
+    <p class="font-mono text-xs opacity-60 uppercase mb-6">Insira os dados do cartão</p>
+    
+    <div class="space-y-4 mb-6">
+      <input type="text" placeholder="NÚMERO DO CARTÃO" class="w-full bg-[#eee] dark:bg-[#222] border-brutal border-black dark:border-white p-4 font-mono font-bold text-sm" />
+      <div class="grid grid-cols-2 gap-4">
+        <input type="text" placeholder="VALIDADE" class="bg-[#eee] dark:bg-[#222] border-brutal border-black dark:border-white p-4 font-mono font-bold text-sm" />
+        <input type="text" placeholder="CVV" class="bg-[#eee] dark:bg-[#222] border-brutal border-black dark:border-white p-4 font-mono font-bold text-sm" />
+      </div>
+      <input type="text" placeholder="NOME NO CARTÃO" class="w-full bg-[#eee] dark:bg-[#222] border-brutal border-black dark:border-white p-4 font-mono font-bold text-sm uppercase" />
+    </div>
+
+    <button id="confirmCard" class="w-full bg-black text-white p-4 font-black uppercase hover:bg-accent-neon hover:text-black transition-all">
+      CONFIRMAR PAGAMENTO R$ ${price}
+    </button>
+
+    <button id="backToMethods" class="w-full border-brutal border-black dark:border-white p-2 font-mono font-bold text-xs uppercase mt-4 hover:bg-black hover:text-white transition-all">
+      VOLTAR
+    </button>
+  `;
+
+  document.getElementById('confirmCard')?.addEventListener('click', () => {
+    const btn = document.getElementById('confirmCard') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.innerText = 'PROCESSANDO...';
+    setTimeout(() => renderSuccessScreen(container, price), 2000);
+  });
+
+  document.getElementById('backToMethods')?.addEventListener('click', () => {
+    if (currentStation) renderPaymentMethodSelection(container, currentStation.name, price);
+  });
+}
+
+function renderSuccessScreen(container: HTMLElement, price: string): void {
+  const protocol = Math.random().toString(36).substring(2, 10).toUpperCase();
+  
+  container.innerHTML = `
+    <div class="text-center py-10 animate-fadeIn">
+      <div class="w-24 h-24 bg-accent-green text-black rounded-full flex items-center justify-center mx-auto mb-8 border-brutal border-black shadow-brutal">
+        <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      
+      <h3 class="text-4xl font-black uppercase mb-2">PAGAMENTO<br/>CONFIRMADO!</h3>
+      <p class="font-mono text-xs opacity-60 uppercase mb-8">Protocolo: #${protocol}</p>
+      
+      <div class="bg-black text-white p-6 border-brutal border-white mb-8 text-left">
+        <div class="font-mono text-[10px] uppercase opacity-60 mb-2">Reserva Confirmada para:</div>
+        <div class="font-black text-xl uppercase mb-4">${currentStation?.name}</div>
+        <div class="flex justify-between border-t border-white/20 pt-4">
+          <span class="font-mono text-xs uppercase">Total Pago:</span>
+          <span class="font-black text-accent-neon text-xl">R$ ${price}</span>
+        </div>
+      </div>
+
+      <div class="bg-[#eee] dark:bg-[#333] p-4 text-xs font-mono font-bold uppercase mb-8 leading-snug">
+        O preço foi garantido por 2 horas. Apresente este protocolo no balcão ou diretamente no bico.
+      </div>
+
+      <button id="closeSuccess" class="w-full bg-black text-white py-4 font-black uppercase hover:bg-white hover:text-black border-brutal border-black transition-all shadow-brutal-sm">
+        FECHAR E VOLTAR AO MAPA
+      </button>
+    </div>
+  `;
+
+  document.getElementById('closeSuccess')?.addEventListener('click', () => {
+    document.getElementById('paymentModal')?.classList.add('hidden');
+  });
 }
 
 // ============================================
@@ -621,6 +761,7 @@ function setupEventListeners(): void {
 function bootstrap() {
   const mapElement = document.getElementById('map');
   if (mapElement) {
+    document.documentElement.setAttribute('data-fuel', currentFuel.toLowerCase());
     initApp();
     setupEventListeners();
   } else {
