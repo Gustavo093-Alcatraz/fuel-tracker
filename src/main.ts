@@ -266,7 +266,12 @@ async function fetchStatePrices(uf: string, produto: string): Promise<number | n
  * Renderiza os marcadores dos estados
  */
 async function renderStateMarkers(): Promise<void> {
-  if (!statesGroup || !map) return;
+  if (!statesGroup || !map) {
+    console.warn('[ESTADOS] Grupos não inicializados');
+    return;
+  }
+
+  console.log('[ESTADOS] Iniciando renderização...');
 
   statesGroup.clearLayers();
 
@@ -281,12 +286,14 @@ async function renderStateMarkers(): Promise<void> {
   };
   const produto = produtoMap[currentFuel] || 'GASOLINA';
 
+  let count = 0;
   for (const state of statesData) {
     // Tenta buscar preço real da API, fallback para preço base
     let currentPrice: string;
     const apiPrice = await fetchStatePrices(state.uf, produto);
 
     if (apiPrice !== null) {
+      console.log(`[ESTADOS] ${state.uf}: R$ ${apiPrice.toFixed(2)} (API)`);
       currentPrice = (apiPrice * fatorDiario).toFixed(2);
     } else {
       // Fallback para preço base simulado
@@ -299,6 +306,7 @@ async function renderStateMarkers(): Promise<void> {
         case 'S10': basePrice *= 0.95; break;
         case 'Podium': basePrice *= 1.15; break;
       }
+      console.log(`[ESTADOS] ${state.uf}: R$ ${basePrice.toFixed(2)} (Simulado)`);
       currentPrice = (basePrice * fatorDiario).toFixed(2);
     }
 
@@ -313,8 +321,11 @@ async function renderStateMarkers(): Promise<void> {
       showStateInfo(state, currentPrice);
     });
 
-    statesGroup?.addLayer(marker);
+    statesGroup.addLayer(marker);
+    count++;
   }
+
+  console.log(`[ESTADOS] ${count} estados renderizados`);
 }
 
 /**
@@ -403,15 +414,21 @@ async function fetchStations(): Promise<void> {
  * Alterna entre marcadores de estado e postos baseado no zoom
  */
 async function handleZoomChange(): Promise<void> {
-  if (!map || !markersGroup || !statesGroup) return;
+  if (!map || !markersGroup || !statesGroup) {
+    console.warn('[ZOOM] Grupos não inicializados');
+    return;
+  }
 
   const zoom = map.getZoom();
+  console.log(`[ZOOM] Nível: ${zoom}`);
 
   if (zoom < 7) {
+    console.log('[ZOOM] Renderizando estados');
     if (map.hasLayer(markersGroup)) map.removeLayer(markersGroup);
     if (!map.hasLayer(statesGroup)) map.addLayer(statesGroup);
     await renderStateMarkers();
   } else {
+    console.log('[ZOOM] Renderizando postos');
     if (map.hasLayer(statesGroup)) map.removeLayer(statesGroup);
     if (!map.hasLayer(markersGroup)) map.addLayer(markersGroup);
     fetchStations();
@@ -457,12 +474,13 @@ async function initApp(): Promise<void> {
   // Monitorar mudança de zoom
   map.on('zoomend', handleZoomChange);
 
-  // Evento load do mapa
-  map.on('load', handleZoomChange);
-
-  setTimeout(() => {
-    if (map) map.invalidateSize();
-  }, 200);
+  // Chama inicialmente após o mapa estar pronto
+  setTimeout(async () => {
+    if (map) {
+      map.invalidateSize();
+      await handleZoomChange();
+    }
+  }, 500);
 }
 
 /**
