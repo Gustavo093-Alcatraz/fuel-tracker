@@ -142,3 +142,16 @@
 .sidebar {
   animation: slideIn 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
+
+/* Fuel Button Active State */
+.fuel-btn.active {
+  background-color: var(--accent-neon) !important;
+  color: #000000 !important;
+  box-shadow: 4px 4px 0px 0px var(--shadow-color);
+  transform: translate(-2px, -2px);
+}
+
+.fuel-btn.active:hover {
+  background-color: var(--accent-neon) !important;
+  color: #000000 !important;
+}
