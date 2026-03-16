@@ -1,6 +1,7 @@
 import './style.css';
 import L from 'leaflet';
 import type { StationData } from './types';
+import { gerarTodosPostos, buscarPostosProximos, calcularPrecoMedioEstado, type PostoFicticio } from './ficticios';
 
 // ============================================
 // INTERFACES E TIPOS
@@ -70,6 +71,9 @@ let map: L.Map | null = null;
 let currentTileLayer: L.TileLayer | null = null;
 let markersGroup: L.LayerGroup | null = null;
 let statesGroup: L.LayerGroup | null = null;
+
+// Postos fictícios (cache)
+let postosFicticiosCache: PostoFicticio[] = [];
 
 // Fator diário para simular flutuação de mercado (Variação entre -2% e +2%)
 const fatorDiario: number = 1.00 + (Math.random() * 0.04 - 0.02);
@@ -240,26 +244,44 @@ function showStateInfo(state: StateData, price: string): void {
 }
 
 /**
- * Busca preços médios por estado na API ANP
+ * Busca preços médios por estado na API ANP (com fallback fictício)
  */
 async function fetchStatePrices(uf: string, produto: string): Promise<number | null> {
+  // Tenta API primeiro
   try {
     const url = `/api/stations?uf=${uf}&produto=${encodeURIComponent(produto)}&limit=1000`;
     const response = await fetch(url);
     const result = await response.json();
 
     if (!result.success || !result.data || result.data.length === 0) {
-      return null;
+      // Fallback para dados fictícios
+      return usarPrecoFicticioEstado(uf, produto);
     }
 
-    // Calcula preço médio
+    // Calcula preço médio da API
     const prices = result.data.map((s: StationData) => s.preco_venda);
     const avg = prices.reduce((sum: number, price: number) => sum + price, 0) / prices.length;
     return avg;
   } catch (error) {
-    console.error(`[API] Erro ao buscar preços de ${uf}:`, error);
-    return null;
+    console.warn(`[API] Erro ao buscar preços de ${uf}, usando fictício`);
+    return usarPrecoFicticioEstado(uf, produto);
   }
+}
+
+/**
+ * Obtém preço fictício para um estado
+ */
+function usarPrecoFicticioEstado(uf: string, produto: string): number | null {
+  if (postosFicticiosCache.length === 0) return null;
+
+  const produtoMap: Record<string, keyof PostoFicticio['precos']> = {
+    'GASOLINA': 'gasolina',
+    'ETANOL': 'etanol',
+    'DIESEL': 'diesel',
+  };
+  const produtoKey = produtoMap[produto] || 'gasolina';
+
+  return calcularPrecoMedioEstado(uf, produtoKey, postosFicticiosCache);
 }
 
 /**
@@ -329,7 +351,7 @@ async function renderStateMarkers(): Promise<void> {
 }
 
 /**
- * Busca postos de combustível na API ANP (via backend)
+ * Busca postos de combustível (API ANP + fallback fictício)
  */
 async function fetchStations(): Promise<void> {
   if (!map || !markersGroup) return;
@@ -349,9 +371,9 @@ async function fetchStations(): Promise<void> {
   const lng = center.lng;
 
   // Calcula raio aproximado baseado no zoom
-  const radius = map.getZoom() >= 12 ? 0.05 : 0.1; // ~5-10km
+  const radius = map.getZoom() >= 12 ? 0.05 : 0.15; // ~5-15km
 
-  // Mapeia combustível atual para produto da ANP
+  // Mapeia combustível atual para produto
   const produtoMap: Record<string, string> = {
     'Gasolina': 'GASOLINA',
     'Aditivada': 'GASOLINA',
@@ -362,52 +384,103 @@ async function fetchStations(): Promise<void> {
   };
   const produto = produtoMap[currentFuel] || 'GASOLINA';
 
-  const url = `/api/stations/nearby?lat=${lat}&lng=${lng}&radius=${radius}&produto=${encodeURIComponent(produto)}`;
-
   try {
+    // Tenta API primeiro
+    const url = `/api/stations/nearby?lat=${lat}&lng=${lng}&radius=${radius}&produto=${encodeURIComponent(produto)}`;
     const response = await fetch(url);
     const result = await response.json();
 
-    if (!result.success || !result.data) {
-      console.warn('[API] Sem dados de postos');
-      return;
-    }
+    if (result.success && result.data && result.data.length > 0) {
+      // Usa dados da API
+      const stations: StationData[] = result.data;
 
-    const stations: StationData[] = result.data;
+      stations.forEach((station: StationData) => {
+        if (!station.latitude || !station.longitude) return;
 
-    stations.forEach((station: StationData) => {
-      if (!station.latitude || !station.longitude) return;
+        const currentPrice: string = station.preco_venda.toFixed(2);
+        const name: string = station.revenda || 'Posto Independente';
 
-      const currentPrice: string = station.preco_venda.toFixed(2);
-      const name: string = station.revenda || 'Posto Independente';
+        const brutalistIcon = createBrutalistIcon(currentPrice);
+        const marker = L.marker([station.latitude, station.longitude], { icon: brutalistIcon });
 
-      const brutalistIcon = createBrutalistIcon(currentPrice);
-      const marker = L.marker([station.latitude, station.longitude], { icon: brutalistIcon });
+        marker.on('click', () => {
+          currentStation = {
+            id: parseInt(station.cnpj_revenda) || Math.random() * 1000000,
+            name,
+            lat: station.latitude || 0,
+            lng: station.longitude || 0,
+            currentPrice,
+            endereco: station.endereco,
+            bairro: station.bairro,
+            municipio: station.municipio,
+            produto: station.produto,
+          };
+          updateStationView();
+        });
 
-      marker.on('click', () => {
-        currentStation = {
-          id: parseInt(station.cnpj_revenda) || Math.random() * 1000000,
-          name,
-          lat: station.latitude || 0,
-          lng: station.longitude || 0,
-          currentPrice,
-          endereco: station.endereco,
-          bairro: station.bairro,
-          municipio: station.municipio,
-          produto: station.produto,
-        };
-        updateStationView();
+        markersGroup?.addLayer(marker);
       });
 
-      markersGroup?.addLayer(marker);
-    });
-
-    console.log(`[API] ${stations.length} postos carregados`);
+      console.log(`[API] ${stations.length} postos carregados`);
+    } else {
+      // Fallback para postos fictícios
+      usarPostosFicticios(lat, lng, radius, produto);
+    }
   } catch (error) {
-    console.error('[API] Erro ao buscar dados:', error);
+    console.warn('[API] Erro, usando postos fictícios');
+    usarPostosFicticios(lat, lng, radius, produto);
   } finally {
     if (statusBadge) statusBadge.classList.remove('active');
   }
+}
+
+/**
+ * Renderiza postos fictícios no mapa
+ */
+function usarPostosFicticios(lat: number, lng: number, radius: number, produto: string): void {
+  if (postosFicticiosCache.length === 0) {
+    console.warn('[FICTÍCIOS] Cache vazio');
+    return;
+  }
+
+  const postosProximos = buscarPostosProximos(lat, lng, radius, postosFicticiosCache);
+
+  if (postosProximos.length === 0) {
+    console.log('[FICTÍCIOS] Nenhum posto próximo encontrado');
+    return;
+  }
+
+  const produtoKeyMap: Record<string, keyof PostoFicticio['precos']> = {
+    'GASOLINA': 'gasolina',
+    'ETANOL': 'etanol',
+    'DIESEL': 'diesel',
+  };
+  const produtoKey = produtoKeyMap[produto] || 'gasolina';
+
+  postosProximos.forEach((posto) => {
+    const currentPrice: string = posto.precos[produtoKey].toFixed(2);
+    const brutalistIcon = createBrutalistIcon(currentPrice);
+    const marker = L.marker([posto.lat, posto.lng], { icon: brutalistIcon });
+
+    marker.on('click', () => {
+      currentStation = {
+        id: posto.id,
+        name: posto.nome,
+        lat: posto.lat,
+        lng: posto.lng,
+        currentPrice,
+        endereco: posto.endereco,
+        bairro: posto.bairro,
+        municipio: posto.municipio,
+        produto: currentFuel,
+      };
+      updateStationView();
+    });
+
+    markersGroup?.addLayer(marker);
+  });
+
+  console.log(`[FICTÍCIOS] ${postosProximos.length} postos renderizados`);
 }
 
 /**
@@ -444,6 +517,11 @@ async function initApp(): Promise<void> {
     console.error('[SYS] Elemento #map não encontrado');
     return;
   }
+
+  // Inicializa postos fictícios
+  console.log('[SYS] Gerando postos fictícios...');
+  postosFicticiosCache = gerarTodosPostos(12); // 12 postos por município
+  console.log(`[SYS] ${postosFicticiosCache.length} postos fictícios gerados`);
 
   // Inicializa o mapa focado no Brasil
   map = L.map('map', {
