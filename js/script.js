@@ -168,7 +168,7 @@ async function fetchStations() {
     const leste = bounds.getEast();
 
     // Query Overpass formatada conforme exigido
-    const query = `[out:json][timeout:25];(node"amenity"="fuel";way"amenity"="fuel";);out center;`;
+    const query = `[out:json][timeout:25];(node["amenity"="fuel"](${sul},${oeste},${norte},${leste});way["amenity"="fuel"](${sul},${oeste},${norte},${leste}););out center;`;
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
     try {

@@ -270,14 +270,6 @@ html {
     z-index: 1;
 }
 
-.leaflet-pane,
-.leaflet-tile,
-.leaflet-marker-icon,
-.leaflet-marker-shadow,
-.leaflet-control {
-    z-index: inherit;
-}
-
 /* Marcador Customizado (DivIcon) */
 .leaflet-brutalist-marker {
     background-color: var(--accent-color);
