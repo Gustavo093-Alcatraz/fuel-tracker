@@ -131,6 +131,12 @@ function simulatePrice(fuelType: string): string {
     case 'Diesel':
       price = baseGasolina * 0.90;
       break;
+    case 'S10':
+      price = baseGasolina * 0.95;
+      break;
+    case 'Podium':
+      price = baseGasolina * 1.15;
+      break;
   }
 
   // Adiciona variação randômica (+/- 10 centavos)
@@ -264,6 +270,12 @@ function renderStateMarkers(): void {
         break;
       case 'Diesel':
         basePrice *= 0.90;
+        break;
+      case 'S10':
+        basePrice *= 0.95;
+        break;
+      case 'Podium':
+        basePrice *= 1.15;
         break;
     }
 
