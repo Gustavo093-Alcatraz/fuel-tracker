@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- CSS Custom Properties para Dark Mode dinâmico --- */
+:root {
+  --shadow-color: #000000;
+}
+
+.dark {
+  --shadow-color: #faff00;
+}
+
+/* --- Leaflet Custom Brutalist Styles --- */
+.leaflet-container {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-light);
+  z-index: 1;
+}
+
+.dark .leaflet-container {
+  background-color: var(--bg-dark);
+}
+
+/* Marcador Customizado (DivIcon) */
+.leaflet-brutalist-marker {
+  background-color: var(--accent-neon);
+  border: 4px solid #000000;
+  box-shadow: 4px 4px 0px 0px var(--shadow-color);
+  transition: all 0.15s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+  border-radius: 0;
+}
+
+.dark .leaflet-brutalist-marker {
+  border-color: #ffffff;
+}
+
+.leaflet-brutalist-marker:hover {
+  transform: scale(1.15) !important;
+  background-color: #ffffff;
+  z-index: 1000 !important;
+  cursor: crosshair;
+}
+
+/* Sobrescrever Popups/Tip do Leaflet */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  border: 4px solid var(--border-color, #000000);
+  border-radius: 0;
+  box-shadow: 4px 4px 0px 0px var(--shadow-color);
+  background: #ffffff;
+  color: #000000;
+}
+
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background: #222222;
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+/* Map Viewport Pattern */
+.map-viewport {
+  background-image: radial-gradient(#c0c0c0 2px, transparent 2px);
+  background-size: 40px 40px;
+}
+
+.dark .map-viewport {
+  background-image: radial-gradient(#2a2a2a 2px, transparent 2px);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #ececec;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #000000;
+  border: 3px solid #ececec;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #ffffff;
+  border: 3px solid #1a1a1a;
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidebar {
+  animation: slideIn 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}

@@ -2,58 +2,94 @@
 <html lang="pt-br">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FUELSTRK // MONITORAMENTO URBANO</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@900&family=JetBrains+Mono:wght@500;800&display=swap"
-        rel="stylesheet">
+        rel="stylesheet" />
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="css/style.css">
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="/src/style.css" />
 </head>
 
-<body>
-
-    <div class="app-container">
-        <aside class="sidebar">
-            <div class="header">
-                <h1 class="brand">FUEL<br>STRK</h1>
-                <button class="theme-toggle" id="modeToggle">MODE: LIGHT</button>
+<body
+    class="bg-bg-light text-black dark:bg-bg-dark dark:text-white h-screen w-screen overflow-hidden transition-colors duration-300">
+    <div class="flex h-screen w-screen border-brutal border-black dark:border-white">
+        <!-- Sidebar -->
+        <aside
+            class="sidebar w-[380px] min-w-[380px] h-full bg-[#ececec] dark:bg-[#1a1a1a] border-r-brutal border-r-black dark:border-r-white p-8 flex flex-col gap-8 z-10 overflow-y-auto">
+            <!-- Header -->
+            <div class="flex flex-col gap-2">
+                <h1 class="text-5xl font-black leading-none uppercase tracking-tighter italic">
+                    FUEL<br />STRK
+                </h1>
+                <button id="modeToggle"
+                    class="mt-4 bg-white dark:bg-[#222222] border-brutal border-black dark:border-white py-2 px-4 font-mono font-bold uppercase cursor-pointer shadow-brutal-sm text-black dark:text-white hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
+                    MODE: LIGHT
+                </button>
             </div>
 
-            <div class="filter-section">
-                <span class="filter-label">Combustível Principal</span>
-                <div class="fuel-grid">
-                    <button class="fuel-btn active" onclick="setFuel(this, 'Gasolina')">Gasolina</button>
-                    <button class="fuel-btn" onclick="setFuel(this, 'Aditivada')">Aditivada</button>
-                    <button class="fuel-btn" onclick="setFuel(this, 'Etanol')">Etanol</button>
-                    <button class="fuel-btn" onclick="setFuel(this, 'Diesel')">Diesel</button>
+            <!-- Filter Section -->
+            <div class="flex flex-col gap-3">
+                <span class="font-mono font-bold uppercase text-xs opacity-70">
+                    Combustível Principal
+                </span>
+                <div class="grid grid-cols-2 gap-[10px]">
+                    <button
+                        class="fuel-btn active bg-white dark:bg-[#222222] border-brutal border-black dark:border-white p-6 font-black text-sm uppercase cursor-pointer text-left transition-all duration-150 ease-brutal text-black dark:text-white active-fuel"
+                        data-fuel="Gasolina">
+                        Gasolina
+                    </button>
+                    <button
+                        class="fuel-btn bg-white dark:bg-[#222222] border-brutal border-black dark:border-white p-6 font-black text-sm uppercase cursor-pointer text-left transition-all duration-150 ease-brutal text-black dark:text-white hover:bg-accent-neon hover:text-black hover:shadow-brutal-sm hover:-translate-x-[2px] hover:-translate-y-[2px]"
+                        data-fuel="Aditivada">
+                        Aditivada
+                    </button>
+                    <button
+                        class="fuel-btn bg-white dark:bg-[#222222] border-brutal border-black dark:border-white p-6 font-black text-sm uppercase cursor-pointer text-left transition-all duration-150 ease-brutal text-black dark:text-white hover:bg-accent-neon hover:text-black hover:shadow-brutal-sm hover:-translate-x-[2px] hover:-translate-y-[2px]"
+                        data-fuel="Etanol">
+                        Etanol
+                    </button>
+                    <button
+                        class="fuel-btn bg-white dark:bg-[#222222] border-brutal border-black dark:border-white p-6 font-black text-sm uppercase cursor-pointer text-left transition-all duration-150 ease-brutal text-black dark:text-white hover:bg-accent-neon hover:text-black hover:shadow-brutal-sm hover:-translate-x-[2px] hover:-translate-y-[2px]"
+                        data-fuel="Diesel">
+                        Diesel
+                    </button>
                 </div>
             </div>
 
-            <div class="info-card empty" id="dynamicCard">
+            <!-- Dynamic Info Card -->
+            <div id="dynamicCard"
+                class="info-card mt-auto border-brutal border-black dark:border-white bg-white dark:bg-[#222222] p-6 min-h-[250px] flex flex-col justify-center relative shadow-brutal-sm empty">
                 <!-- Data will be injected here -->
             </div>
 
-            <div style="font-family: 'JetBrains Mono'; font-size: 10px; opacity: 0.5; margin-top: 1rem;">
+            <!-- Version Footer -->
+            <div class="font-mono text-[10px] opacity-50 mt-auto">
                 v1.0.4-BRUTALIST // SYSTEM_OPERATIONAL
             </div>
         </aside>
 
-        <main class="map-viewport">
-            <div id="mapStatus" class="map-status">FETCHING_OSM_DATA...</div>
-            <!-- Container real do Leaflet -->
-            <div id="map"></div>
+        <!-- Map Viewport -->
+        <main class="map-viewport flex-grow-1 bg-bg-light dark:bg-bg-dark relative cursor-crosshair">
+            <div id="mapStatus"
+                class="map-status absolute top-5 right-5 z-[1000] bg-accent-neon text-black border-brutal border-black dark:border-white py-2 px-4 font-mono font-bold uppercase shadow-brutal-sm hidden">
+                FETCHING_OSM_DATA...
+            </div>
+            <!-- Leaflet Map Container -->
+            <div id="map" class="w-full h-full"></div>
         </main>
     </div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="js/script.js"></script>
+    <!-- Main TypeScript Entry Point -->
+    <script type="module" src="/src/main.ts"></script>
 </body>
 
 </html>
