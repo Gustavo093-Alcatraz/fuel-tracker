@@ -202,6 +202,46 @@ function showPost(name: string, price: string): void {
 }
 
 /**
+ * Exibe informações do estado selecionado (zoom out)
+ */
+function showStateInfo(state: StateData, price: string): void {
+  const dynamicCard = document.getElementById('dynamicCard');
+  if (!dynamicCard) return;
+
+  dynamicCard.classList.remove('empty');
+
+  const now: Date = new Date();
+  const timeString: string = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  dynamicCard.innerHTML = `
+    <div class="post-details animate-fadeIn">
+      <span class="font-mono font-bold text-xs" style="color: var(--accent-neon); background: #000; padding: 2px 5px;">
+        ${state.uf}
+      </span>
+      <h2 class="text-3xl font-black leading-none uppercase mt-[10px]">${state.name}</h2>
+      <div class="font-mono font-bold text-xs uppercase mt-2">${currentFuel}</div>
+      <div class="font-mono font-bold text-[4rem] leading-none tracking-tighter my-2" style="color: var(--accent-neon); -webkit-text-stroke: 1px var(--border-color, #000);">
+        R$ ${price}
+      </div>
+      <div class="font-mono text-xs uppercase opacity-60 mt-2">
+        PREÇO APROXIMADO
+      </div>
+      <div class="font-mono text-xs uppercase opacity-60">
+        Última atualização: Hoje, ${timeString}
+      </div>
+    </div>
+  `;
+
+  // Trigger reflow para reiniciar animação
+  const card = dynamicCard.querySelector('.post-details') as HTMLElement | null;
+  if (card) {
+    card.style.animation = 'none';
+    card.offsetHeight;
+    card.style.animation = 'fadeIn 0.3s ease';
+  }
+}
+
+/**
  * Renderiza os marcadores dos estados
  */
 function renderStateMarkers(): void {
@@ -236,6 +276,8 @@ function renderStateMarkers(): void {
       if (map) {
         map.setView([state.lat, state.lng], 8);
       }
+      // Mostra informação do estado selecionado
+      showStateInfo(state, currentPrice);
     });
 
     statesGroup?.addLayer(marker);
