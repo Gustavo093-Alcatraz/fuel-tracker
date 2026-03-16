@@ -143,7 +143,7 @@ function simulatePrice(fuelType: string): string {
  */
 function createBrutalistIcon(price: string): L.DivIcon {
   return L.divIcon({
-    html: `<div class="pin flex items-center justify-center w-[80px] h-[80px] bg-white dark:bg-[#222222] border-4 border-black dark:border-white rounded-full font-mono font-bold cursor-pointer shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all duration-150 hover:scale-110 hover:-rotate-5 hover:bg-accent-neon hover:text-black z-[5] hover:z-[6]">${price}</div>`,
+    html: `<div class="pin">${price}</div>`,
     iconSize: [80, 80],
     iconAnchor: [40, 80],
     className: 'leaflet-brutalist-marker',
